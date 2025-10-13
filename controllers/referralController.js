@@ -4,7 +4,9 @@ const User = require("../models/User");
 const getMyReferrals = async (req, res) => {
   try {
     const referrals = await User.find({ referredBy: req.user.id })
-      .select("name email createdAt referralCode")
+      .select(
+        "name email createdAt referralCode storeName accountLevel accountStatus isVerified"
+      )
       .sort({ createdAt: -1 });
 
     res.json({ referrals });

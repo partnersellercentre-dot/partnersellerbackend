@@ -71,16 +71,21 @@ const registerWithOtp = async (req, res) => {
     // ✅ store plain password for testing
     user.plainPassword = password;
 
-    const referralCode = Math.random()
+    const newReferralCode = Math.random()
       .toString(36)
       .substring(2, 8)
       .toUpperCase();
+    let referrer = null;
+    if (referralCode) {
+      referrer = await User.findOne({ referralCode });
+    }
 
     user.passwordHash = passwordHash;
-    user.referralCode = referralCode;
+    user.referralCode = newReferralCode;
     user.isVerified = true;
     user.otp = null;
     user.otpExpires = null;
+    user.referredBy = referrer ? referrer._id : null; // <-- set referredBy
 
     await user.save();
 
@@ -161,9 +166,10 @@ const registerWithUsername = async (req, res) => {
       .substring(2, 8)
       .toUpperCase();
 
-    const referredByUser = invitationCode
-      ? await User.findOne({ referralCode: invitationCode })
-      : null;
+    let referrer = null;
+    if (invitationCode) {
+      referrer = await User.findOne({ referralCode: invitationCode });
+    }
 
     const user = await User.create({
       name: username,
@@ -173,7 +179,7 @@ const registerWithUsername = async (req, res) => {
       isVerified: true,
       role: "user",
       referralCode,
-      referredBy: referredByUser ? referredByUser._id : null,
+      referredBy: referrer ? referrer._id : null, // <-- set referredBy
     });
 
     await Notification.create({
