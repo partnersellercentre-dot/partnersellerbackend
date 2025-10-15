@@ -5,7 +5,7 @@ const fs = require("fs");
 // Create product (Admin only)
 exports.createProduct = async (req, res) => {
   try {
-    const { name, price, category } = req.body;
+    const { name, price, category, stock, rating } = req.body; // <-- add stock, rating
 
     let imageUrl = null;
 
@@ -28,6 +28,8 @@ exports.createProduct = async (req, res) => {
       name,
       price,
       category,
+      stock, // <-- add stock
+      rating, // <-- add rating
       image: imageUrl,
     });
 

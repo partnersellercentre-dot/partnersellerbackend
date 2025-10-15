@@ -4,11 +4,7 @@ const productSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     price: { type: Number, required: true },
-    seller: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
+
     category: {
       type: String,
       required: true,
@@ -27,6 +23,8 @@ const productSchema = new mongoose.Schema(
       ],
     },
     image: { type: String },
+    stock: { type: Number, required: true }, // <-- add this line
+    rating: { type: Number, default: 0 }, // <-- add this line
   },
   { timestamps: true }
 );
