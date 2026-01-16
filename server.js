@@ -60,6 +60,7 @@ app.use("/api/kyc", kycRoutes);
 app.use("/api/purchases", purchaseRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/deposit", depositRoutes);
+app.use("/api/nowpayments", require("./routes/nowpaymentsRoutes"));
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/referral", require("./routes/referralRoutes"));
 app.use("/api/announcements", announcementRoutes);

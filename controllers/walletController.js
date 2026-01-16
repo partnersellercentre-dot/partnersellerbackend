@@ -1,4 +1,5 @@
 const WalletTransaction = require("../models/WalletTransaction");
+const Deposit = require("../models/depositModel");
 const User = require("../models/User");
 const mongoose = require("mongoose");
 const Notification = require("../models/Notification");
@@ -238,14 +239,48 @@ exports.rejectWithdraw = async (req, res) => {
 
 exports.getMyTransactions = async (req, res) => {
   try {
-    const transactions = await WalletTransaction.find({
-      user: req.user.id,
-    }).sort({ createdAt: -1 });
+    const userId = req.user._id || req.user.id;
 
-    const user = await User.findById(req.user.id).select("balance name email");
+    const walletTransactions = await WalletTransaction.find({
+      user: userId,
+    }).lean();
 
-    res.json({ transactions, user });
+    const automatedDeposits = await Deposit.find({
+      user: userId,
+    }).lean();
+
+    // Map automated deposits to match WalletTransaction structure
+    const mappedDeposits = automatedDeposits.map((d) => ({
+      _id: d._id,
+      amount: d.receivedAmount || d.expectedAmount || 0,
+      type: "deposit",
+      method: d.system ? `${d.system} (${d.currency || ""})` : "Automated",
+      status:
+        d.status === "credited"
+          ? "approved"
+          : d.status === "failed"
+          ? "rejected"
+          : "pending",
+      createdAt: d.createdAt || new Date(),
+      isAutomated: true,
+      orderId: d.orderId,
+      txid: d.txid,
+    }));
+
+    // Merge and sort
+    const transactions = [...walletTransactions, ...mappedDeposits].sort(
+      (a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt) : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt) : 0;
+        return dateB - dateA;
+      }
+    );
+
+    const user = await User.findById(userId).select("balance name email");
+
+    res.json({ success: true, transactions, user });
   } catch (error) {
+    console.error("getMyTransactions Error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
