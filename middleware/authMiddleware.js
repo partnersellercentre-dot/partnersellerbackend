@@ -19,6 +19,7 @@ const protect = async (req, res, next) => {
   }
 };
 
+
 const adminProtect = async (req, res, next) => {
   let token;
   if (req.headers.authorization?.startsWith("Bearer")) {
