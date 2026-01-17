@@ -7,6 +7,8 @@ const {
   loginWithUsername,
   getMe,
   updateProfile,
+  forgotPassword,
+  resetPassword,
 } = require("../controllers/authController");
 const { protect } = require("../middleware/authMiddleware");
 const upload = require("../middleware/multer"); // Import multer middleware
@@ -21,6 +23,8 @@ router.post("/login-otp", loginWithOtp); // Login using OTP
 // Username/Password-based routes
 router.post("/register-username", registerWithUsername); // Register with username
 router.post("/login-username", loginWithUsername); // Login with username
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password", resetPassword);
 router.put(
   "/update-profile",
   protect,

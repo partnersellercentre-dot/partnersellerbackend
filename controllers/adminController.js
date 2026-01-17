@@ -90,7 +90,15 @@ const getAdminProfile = async (req, res) => {
 const getAllUsers = async (req, res) => {
   try {
     const users = await User.find({}, "+plainPassword").lean(); // ✅ lean ensures plain JS
-    res.json({ users });
+    // Add KYC status to each user
+    const usersWithKyc = await Promise.all(
+      users.map(async (user) => {
+        const kyc = await KYC.findOne({ user: user._id });
+        const isKycApproved = kyc && kyc.status === "approved";
+        return { ...user, isKycApproved };
+      })
+    );
+    res.json({ users: usersWithKyc });
   } catch (err) {
     console.error("Get all users error:", err.message);
     res.status(500).json({ error: "Server error", details: err.message });

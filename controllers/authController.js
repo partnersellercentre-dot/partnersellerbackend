@@ -5,6 +5,7 @@ const User = require("../models/User");
 const sendOTP = require("../utils/mailer");
 const cloudinary = require("../middleware/cloudinary");
 const Notification = require("../models/Notification");
+const KYC = require("../models/KYC");
 
 // Generate token
 const generateToken = (id) => {
@@ -236,6 +237,65 @@ const loginWithUsername = async (req, res) => {
   }
 };
 
+// --- Forgot Password ---
+const forgotPassword = async (req, res) => {
+  try {
+    const { username, email } = req.body;
+    if (!username || !email)
+      return res.status(400).json({ error: "Username and Email are required" });
+
+    const user = await User.findOne({ name: username, email });
+    if (!user)
+      return res
+        .status(404)
+        .json({
+          error: "No user found with this username and email combination",
+        });
+
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 min
+
+    user.otp = otp;
+    user.otpExpires = otpExpires;
+    await user.save();
+
+    await sendOTP(email, otp);
+
+    res.json({ message: "Reset OTP sent to your email" });
+  } catch (err) {
+    console.error("Forgot password error:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// --- Reset Password ---
+const resetPassword = async (req, res) => {
+  try {
+    const { username, otp, newPassword } = req.body;
+    if (!username || !otp || !newPassword)
+      return res.status(400).json({ error: "All fields are required" });
+
+    const user = await User.findOne({ name: username });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    if (user.otp !== otp) return res.status(400).json({ error: "Invalid OTP" });
+    if (user.otpExpires < new Date())
+      return res.status(400).json({ error: "OTP expired" });
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    user.passwordHash = passwordHash;
+    user.plainPassword = newPassword; // Keep it in sync if you're using it
+    user.otp = null;
+    user.otpExpires = null;
+    await user.save();
+
+    res.json({ message: "Password reset successful" });
+  } catch (err) {
+    console.error("Reset password error:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
 // Get user profile
 const getMe = async (req, res) => {
   try {
@@ -243,7 +303,10 @@ const getMe = async (req, res) => {
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
-    res.json(user);
+    // Check KYC status
+    const kyc = await KYC.findOne({ user: req.user.id });
+    const isKycApproved = kyc && kyc.status === "approved";
+    res.json({ ...user.toObject(), isKycApproved });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -290,4 +353,6 @@ module.exports = {
   getMe,
   registerWithUsername,
   loginWithUsername,
+  forgotPassword,
+  resetPassword,
 };
