@@ -37,9 +37,8 @@ exports.approveDeposit = async (req, res) => {
   try {
     const { transactionId, amount } = req.body;
 
-    const transaction = await WalletTransaction.findById(
-      transactionId
-    ).populate("user");
+    const transaction =
+      await WalletTransaction.findById(transactionId).populate("user");
     if (!transaction)
       return res.status(404).json({ message: "Transaction not found" });
 
@@ -91,9 +90,8 @@ exports.rejectDeposit = async (req, res) => {
 exports.releaseBuyerEscrow = async (req, res) => {
   try {
     const { transactionId } = req.body;
-    const txn = await WalletTransaction.findById(transactionId).populate(
-      "user purchase"
-    );
+    const txn =
+      await WalletTransaction.findById(transactionId).populate("user purchase");
     if (
       !txn ||
       txn.type !== "escrow" ||
@@ -101,12 +99,16 @@ exports.releaseBuyerEscrow = async (req, res) => {
     )
       return res.status(404).json({ message: "Escrow transaction not found" });
 
-    // Check if 72 hours have passed since purchase
+    // Check if 48 hours have passed since purchase
     const now = new Date();
     const created = new Date(txn.purchase.createdAt);
     const secondsPassed = (now - created) / 1000;
-    if (secondsPassed < 259200)
-      return res.status(400).json({ message: "72 hours not completed yet" });
+    if (secondsPassed < 172800)
+      return res.status(400).json({ message: "48 hours not completed yet" });
+
+    if (txn.status === "approved") {
+      return res.status(400).json({ message: "Funds already released" });
+    }
 
     txn.status = "approved";
     await txn.save();
@@ -137,8 +139,8 @@ exports.withdrawRequest = async (req, res) => {
     const fee = Math.round(amount * 0.05 * 100) / 100; // round to 2 decimals
     const netAmount = Math.round((amount - fee) * 100) / 100;
 
-    // Deduct amount + fee from user balance
-    user.balance -= amount + fee;
+    // Deduct amount from user balance (amount already includes fee)
+    user.balance -= amount;
     await user.save();
 
     const transaction = await WalletTransaction.create({
@@ -172,9 +174,8 @@ exports.approveWithdraw = async (req, res) => {
   try {
     const { transactionId } = req.body;
 
-    const transaction = await WalletTransaction.findById(
-      transactionId
-    ).populate("user");
+    const transaction =
+      await WalletTransaction.findById(transactionId).populate("user");
 
     if (!transaction) {
       return res.status(404).json({ message: "Transaction not found" });
@@ -259,8 +260,8 @@ exports.getMyTransactions = async (req, res) => {
         d.status === "credited"
           ? "approved"
           : d.status === "failed"
-          ? "rejected"
-          : "pending",
+            ? "rejected"
+            : "pending",
       createdAt: d.createdAt || new Date(),
       isAutomated: true,
       orderId: d.orderId,
@@ -273,7 +274,7 @@ exports.getMyTransactions = async (req, res) => {
         const dateA = a.createdAt ? new Date(a.createdAt) : 0;
         const dateB = b.createdAt ? new Date(b.createdAt) : 0;
         return dateB - dateA;
-      }
+      },
     );
 
     const user = await User.findById(userId).select("balance name email");

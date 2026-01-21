@@ -6,6 +6,8 @@ const sendOTP = require("../utils/mailer");
 const cloudinary = require("../middleware/cloudinary");
 const Notification = require("../models/Notification");
 const KYC = require("../models/KYC");
+const SystemSettings = require("../models/SystemSettings");
+const WalletTransaction = require("../models/WalletTransaction");
 
 // Generate token
 const generateToken = (id) => {
@@ -55,7 +57,7 @@ const sendOtpHandler = async (req, res) => {
 
 const registerWithOtp = async (req, res) => {
   try {
-    const { email, otp, password } = req.body;
+    const { email, otp, password, referralCode } = req.body;
     if (!email || !otp || !password)
       return res.status(400).json({ error: "All fields are required" });
 
@@ -87,6 +89,44 @@ const registerWithOtp = async (req, res) => {
     user.otp = null;
     user.otpExpires = null;
     user.referredBy = referrer ? referrer._id : null; // <-- set referredBy
+
+    // Apply Signup Bonus
+    const settings = await SystemSettings.findOne();
+    const signupBonus = settings ? settings.signupBonus : 0;
+    const referralBonus = settings ? settings.referralBonus : 0;
+
+    if (signupBonus > 0) {
+      user.balance = (user.balance || 0) + signupBonus;
+      await WalletTransaction.create({
+        user: user._id,
+        amount: signupBonus,
+        type: "bonus",
+        status: "approved",
+        direction: "in",
+        method: "Signup Bonus",
+      });
+    }
+
+    // Apply Referral Bonus to Referrer
+    if (referrer && referralBonus > 0) {
+      referrer.balance = (referrer.balance || 0) + referralBonus;
+      await referrer.save();
+
+      await WalletTransaction.create({
+        user: referrer._id,
+        amount: referralBonus,
+        type: "bonus",
+        status: "approved",
+        direction: "in",
+        method: "Referral Bonus",
+      });
+
+      await Notification.create({
+        title: "Referral Bonus Credited",
+        message: `You received $${referralBonus} bonus for referring ${user.name}.`,
+        user: referrer._id,
+      });
+    }
 
     await user.save();
 
@@ -188,6 +228,44 @@ const registerWithUsername = async (req, res) => {
       referralCode,
       referredBy: referrer ? referrer._id : null, // <-- set referredBy
     });
+
+    // Apply Signup Bonus
+    const settings = await SystemSettings.findOne();
+    const signupBonus = settings ? settings.signupBonus : 0;
+    const referralBonus = settings ? settings.referralBonus : 0;
+
+    if (signupBonus > 0) {
+      user.balance += signupBonus;
+      await WalletTransaction.create({
+        user: user._id,
+        amount: signupBonus,
+        type: "bonus",
+        status: "approved",
+        direction: "in",
+        method: "Signup Bonus",
+      });
+    }
+
+    // Apply Referral Bonus to Referrer
+    if (referrer && referralBonus > 0) {
+      referrer.balance = (referrer.balance || 0) + referralBonus;
+      await referrer.save();
+
+      await WalletTransaction.create({
+        user: referrer._id,
+        amount: referralBonus,
+        type: "bonus",
+        status: "approved",
+        direction: "in",
+        method: "Referral Bonus",
+      });
+
+      await Notification.create({
+        title: "Referral Bonus Credited",
+        message: `You received $${referralBonus} bonus for referring ${user.name}.`,
+        user: referrer._id,
+      });
+    }
 
     await Notification.create({
       title: "New User Registered",

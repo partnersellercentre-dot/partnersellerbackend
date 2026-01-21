@@ -84,8 +84,9 @@ exports.getMyPurchases = async (req, res) => {
         return {
           ...purchase.toObject(),
           buyerEscrowTransactionId: buyerEscrowTxn ? buyerEscrowTxn._id : null,
+          escrowStatus: buyerEscrowTxn ? buyerEscrowTxn.status : null,
         };
-      })
+      }),
     );
 
     res.json({ success: true, purchases: purchasesWithEscrow });
@@ -123,15 +124,15 @@ exports.claimProfit = async (req, res) => {
     if (purchase.status !== "to_be_paid") {
       return res.status(400).json({ message: "Profit already claimed" });
     }
-    // Check if 72 hours seconds have passed (for testing)
+    // Check if 48 hours seconds have passed (for testing)
     const purchaseTime = new Date(purchase.createdAt);
     const now = new Date();
     const secondsSincePurchase = (now - purchaseTime) / 1000; // convert ms to seconds
 
-    if (secondsSincePurchase < 259200) {
+    if (secondsSincePurchase < 172800) {
       return res.status(400).json({
-        message: `Profit can only be claimed after 72 hours. Please wait ${Math.ceil(
-          (259200 - secondsSincePurchase) / 3600
+        message: `Profit can only be claimed after 48 hours. Please wait ${Math.ceil(
+          (172800 - secondsSincePurchase) / 3600,
         )} more hour(s).`,
       });
     }
@@ -139,7 +140,7 @@ exports.claimProfit = async (req, res) => {
     // Calculate profit (e.g., 10%)
     const profitPercent = 10;
     const profitAmount = Math.round(
-      (purchase.product.price * profitPercent) / 100
+      (purchase.product.price * profitPercent) / 100,
     );
 
     // Add profit to user's wallet

@@ -7,6 +7,8 @@ const {
   deleteUserById,
   verifyOrRejectKYC,
   updateUserStatus,
+  getSystemSettings,
+  updateSystemSettings,
 } = require("../controllers/adminController");
 const { admin, adminProtect } = require("../middleware/authMiddleware");
 const Purchase = require("../models/Purchase"); // Add at top
@@ -47,5 +49,9 @@ router.put("/verify/:id", adminProtect, admin, verifyOrRejectKYC);
 router.get("/admin-profile", adminProtect, admin, getAdminProfile);
 router.delete("/users/:id", adminProtect, deleteUserById); // DELETE route to delete a user
 router.put("/users/:id/status", adminProtect, admin, updateUserStatus);
+
+// System Settings
+router.get("/settings", adminProtect, admin, getSystemSettings);
+router.put("/settings", adminProtect, admin, updateSystemSettings);
 
 module.exports = router;

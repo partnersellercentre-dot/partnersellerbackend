@@ -7,7 +7,7 @@ const walletTransactionSchema = new mongoose.Schema(
     amount: { type: Number, required: true },
     type: {
       type: String,
-      enum: ["deposit", "withdraw", "escrow"],
+      enum: ["deposit", "withdraw", "escrow", "bonus"],
       required: true,
     },
     purchase: { type: mongoose.Schema.Types.ObjectId, ref: "Purchase" }, // <-- add this line
@@ -21,15 +21,19 @@ const walletTransactionSchema = new mongoose.Schema(
         "Nagad",
         "UPI",
         "Escrow",
+        "USDT (TRC20)",
+        "USDT (BEP20)",
       ],
       required: function () {
-        return this.type !== "escrow";
+        return this.type !== "escrow" && this.type !== "bonus";
       },
       default: function () {
-        return this.type === "escrow" ? "Escrow" : undefined;
+        if (this.type === "escrow") return "Escrow";
+        if (this.type === "bonus") return "Bonus";
+        return undefined;
       },
     },
-    direction: { type: String, enum: ["out"], default: "out" }, // <-- ADD THIS LINE
+    direction: { type: String, enum: ["in", "out"], default: "out" }, // <-- ADD THIS LINE
 
     accountName: { type: String }, // ✅ added
     accountNumber: { type: String }, // ✅ added
@@ -41,7 +45,7 @@ const walletTransactionSchema = new mongoose.Schema(
     fee: { type: Number, default: 0 }, // <-- add this
     netAmount: { type: Number, default: 0 }, // <-- add this
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("WalletTransaction", walletTransactionSchema);

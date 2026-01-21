@@ -3,6 +3,7 @@ const Admin = require("../models/Admin");
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
 const KYC = require("../models/KYC"); // ✅ Add this import
+const SystemSettings = require("../models/SystemSettings");
 
 // Generate JWT Token (include role)
 const generateToken = (id, role) => {
@@ -96,7 +97,7 @@ const getAllUsers = async (req, res) => {
         const kyc = await KYC.findOne({ user: user._id });
         const isKycApproved = kyc && kyc.status === "approved";
         return { ...user, isKycApproved };
-      })
+      }),
     );
     res.json({ users: usersWithKyc });
   } catch (err) {
@@ -176,6 +177,39 @@ const verifyOrRejectKYC = async (req, res) => {
   }
 };
 
+// --- System Settings ---
+const getSystemSettings = async (req, res) => {
+  try {
+    let settings = await SystemSettings.findOne();
+    if (!settings) {
+      settings = await SystemSettings.create({
+        signupBonus: 0,
+        referralBonus: 0,
+      });
+    }
+    res.json(settings);
+  } catch (err) {
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
+};
+
+const updateSystemSettings = async (req, res) => {
+  try {
+    const { signupBonus, referralBonus } = req.body;
+    let settings = await SystemSettings.findOne();
+    if (!settings) {
+      settings = new SystemSettings({ signupBonus, referralBonus });
+    } else {
+      if (signupBonus !== undefined) settings.signupBonus = signupBonus;
+      if (referralBonus !== undefined) settings.referralBonus = referralBonus;
+    }
+    await settings.save();
+    res.json({ message: "Settings updated successfully", settings });
+  } catch (err) {
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
+};
+
 module.exports = {
   registerAdmin,
   loginAdmin,
@@ -185,4 +219,6 @@ module.exports = {
   updateUserStatus, // <-- add this
 
   verifyOrRejectKYC, // ✅ add this line
+  getSystemSettings,
+  updateSystemSettings,
 };
