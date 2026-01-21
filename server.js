@@ -24,7 +24,8 @@ connectDB();
 const corsOptions = {
   origin: [
     "http://localhost:5173",
-    "https://www.partnersellercentre.shop", // "https://www.partnersellercentre.shop", // <-- REMOVE trailing slash
+    "http://localhost:3000",
+    "https://www.partnersellercentre.shop", // <-- REMOVE trailing slash
   ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -45,6 +46,7 @@ app.options("*", cors(corsOptions));
 
 // ✅ Body parser
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // ✅ Health check
 app.get("/", (req, res) => {

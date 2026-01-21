@@ -153,13 +153,19 @@ const loginWithOtp = async (req, res) => {
 
 const registerWithUsername = async (req, res) => {
   try {
-    const { username, password, invitationCode } = req.body;
-    if (!username || !password)
-      return res.status(400).json({ error: "Username and password required" });
+    const { username, password, invitationCode, email } = req.body;
+    if (!username || !password || !email)
+      return res
+        .status(400)
+        .json({ error: "Username, password, and email are required" });
 
-    const existing = await User.findOne({ name: username });
-    if (existing)
+    const existingUsername = await User.findOne({ name: username });
+    if (existingUsername)
       return res.status(400).json({ error: "Username already taken" });
+
+    const existingEmail = await User.findOne({ email });
+    if (existingEmail)
+      return res.status(400).json({ error: "Email already registered" });
 
     const passwordHash = await bcrypt.hash(password, 10);
     const referralCode = Math.random()
@@ -174,7 +180,7 @@ const registerWithUsername = async (req, res) => {
 
     const user = await User.create({
       name: username,
-      email: null,
+      email,
       passwordHash,
       plainPassword: password, // ✅ store plain password here
       isVerified: true,
@@ -246,11 +252,9 @@ const forgotPassword = async (req, res) => {
 
     const user = await User.findOne({ name: username, email });
     if (!user)
-      return res
-        .status(404)
-        .json({
-          error: "No user found with this username and email combination",
-        });
+      return res.status(404).json({
+        error: "No user found with this username and email combination",
+      });
 
     const otp = crypto.randomInt(100000, 999999).toString();
     const otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 min
@@ -315,14 +319,30 @@ const getMe = async (req, res) => {
 
 const updateProfile = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const { name } = req.body;
+    const userId = req.user._id;
+    console.log("Update Body:", req.body);
+    const { name, email } = req.body;
 
     let updateData = {};
     if (name) updateData.name = name;
 
+    if (email && email.trim() !== "") {
+      console.log("Updating email to:", email);
+      // Check if email is already taken by another user
+      const existingUser = await User.findOne({
+        email: email.trim(),
+        _id: { $ne: userId },
+      });
+
+      if (existingUser) {
+        return res.status(400).json({ error: "Email is already in use" });
+      }
+      updateData.email = email.trim();
+    }
+
     // If file uploaded, upload to Cloudinary
     if (req.file) {
+      console.log("File uploaded, processing image...");
       const result = await cloudinary.uploader.upload(req.file.path, {
         folder: "profile_images",
         use_filename: true,
@@ -331,9 +351,18 @@ const updateProfile = async (req, res) => {
       updateData.profileImage = result.secure_url;
     }
 
-    const user = await User.findByIdAndUpdate(userId, updateData, {
-      new: true,
-    }).select("-passwordHash -otp -otpExpires");
+    console.log("Final updateData to be saved:", updateData);
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: updateData },
+      {
+        new: true,
+        runValidators: true,
+      },
+    ).select("-passwordHash -otp -otpExpires");
+
+    console.log("Updated User Result:", user);
 
     res.json({
       message: "Profile updated successfully",
