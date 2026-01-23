@@ -12,6 +12,11 @@ const LevelSchema = new mongoose.Schema({
   ranges: [RangeSchema],
 });
 
+const SimpleLevelSchema = new mongoose.Schema({
+  level: { type: Number, required: true },
+  percentage: { type: Number, required: true },
+});
+
 const systemSettingsSchema = new mongoose.Schema(
   {
     signupBonus: {
@@ -24,8 +29,17 @@ const systemSettingsSchema = new mongoose.Schema(
       default: 0,
     },
     // New complex settings
-    referralDepositSettings: [LevelSchema],
-    referralOrderSettings: [LevelSchema],
+    // referralDepositSettings: [LevelSchema], // Deprecated/Replaced
+    referralOrderSettings: [SimpleLevelSchema],
+
+    // New Deposit Bonus Settings
+    // depositSelfBonusPercentage: { type: Number, default: 0 },
+    // referralFirstDepositBonusPercentage: { type: Number, default: 0 },
+    // referralFirstDepositMinAmount: { type: Number, default: 0 },
+
+    // Range-based Deposit Settings
+    depositSelfRanges: [RangeSchema],
+    referralFirstDepositRanges: [RangeSchema],
   },
   { timestamps: true },
 );

@@ -2,7 +2,7 @@ const Deposit = require("../models/depositModel");
 const User = require("../models/User");
 const { verifyIpnRequest } = require("../utils/ipnVerifier");
 const loadPaykassa = require("../utils/paykassaClient");
-const { processReferralBonus } = require("../utils/bonusUtils");
+const { processDepositBonus } = require("../utils/bonusUtils");
 
 async function initDeposit(req, res) {
   try {
@@ -150,8 +150,8 @@ async function handleIpn(req, res) {
         user.balance = (user.balance || 0) + amountReceived;
         await user.save();
 
-        // Trigger Referral Bonus
-        await processReferralBonus(user._id, amountReceived, "deposit");
+        // Trigger Deposit Bonus (Self + Referral First Time)
+        await processDepositBonus(user._id, amountReceived);
       }
     }
 
@@ -242,8 +242,8 @@ async function handleTransactionNotification(req, res) {
         user.balance = (user.balance || 0) + amount;
         await user.save();
 
-        // Trigger Referral Bonus
-        await processReferralBonus(user._id, amount, "deposit");
+        // Trigger Deposit Bonus (Self + Referral First Time)
+        await processDepositBonus(user._id, amount);
       }
     }
 
