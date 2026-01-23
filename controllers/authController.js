@@ -74,10 +74,9 @@ const registerWithOtp = async (req, res) => {
     // ✅ store plain password for testing
     user.plainPassword = password;
 
-    const newReferralCode = Math.random()
-      .toString(36)
-      .substring(2, 8)
-      .toUpperCase();
+    const newReferralCode = Math.floor(
+      1000000000 + Math.random() * 9000000000,
+    ).toString();
     let referrer = null;
     if (referralCode) {
       referrer = await User.findOne({ referralCode });
@@ -187,10 +186,9 @@ const registerWithUsername = async (req, res) => {
       return res.status(400).json({ error: "Email already registered" });
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const referralCode = Math.random()
-      .toString(36)
-      .substring(2, 8)
-      .toUpperCase();
+    const referralCode = Math.floor(
+      1000000000 + Math.random() * 9000000000,
+    ).toString();
 
     let referrer = null;
     if (invitationCode) {
