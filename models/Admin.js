@@ -13,7 +13,7 @@ const adminSchema = new mongoose.Schema(
     password: {
       type: String,
       required: true,
-      minLength: 6,
+      minLength: 5,
     },
     role: {
       type: String,
@@ -22,7 +22,7 @@ const adminSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Hash password before saving
