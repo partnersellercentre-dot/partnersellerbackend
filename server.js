@@ -20,13 +20,20 @@ const app = express();
 // ✅ Connect DB
 connectDB();
 
-// ✅ CORS configuration (simple, safe for both local + production)
+// ✅ CORS configuration
+const allowedOrigins = [
+  process.env.FRONTEND_URL || "http://localhost:5173",
+  "https://www.partnersellercentre.shop",
+];
+
 const corsOptions = {
-  origin: [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "https://www.partnersellercentre.shop", // <-- REMOVE trailing slash
-  ],
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: [

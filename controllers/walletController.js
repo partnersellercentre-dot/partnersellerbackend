@@ -136,7 +136,7 @@ exports.withdrawRequest = async (req, res) => {
       return res.status(400).json({ message: "Insufficient balance" });
     }
 
-    const fee = Math.round(amount * 0.05 * 100) / 100; // round to 2 decimals
+    const fee = Math.round(amount * 0.038 * 100) / 100; // round to 2 decimals
     const netAmount = Math.round((amount - fee) * 100) / 100;
 
     // Deduct amount from user balance (amount already includes fee)
@@ -156,7 +156,7 @@ exports.withdrawRequest = async (req, res) => {
     });
     await Notification.create({
       title: "New Withdraw Request",
-      message: `${req.user.name} requested a withdrawal of $${amount}.`,
+      message: `${req.user.name} requested a withdrawal of $${amount}. Net payout after 3.8% fee: $${netAmount}.`,
       user: req.user._id,
     });
 
@@ -198,43 +198,35 @@ exports.approveWithdraw = async (req, res) => {
 };
 
 exports.rejectWithdraw = async (req, res) => {
-  const session = await mongoose.startSession();
   try {
-    session.startTransaction();
-
     const { transactionId } = req.body;
 
     // Find transaction and populate user
-    const transaction = await WalletTransaction.findById(transactionId)
-      .populate("user")
-      .session(session);
+    const transaction =
+      await WalletTransaction.findById(transactionId).populate("user");
     if (!transaction) {
-      await session.abortTransaction();
       return res.status(404).json({ message: "Transaction not found" });
     }
 
     if (transaction.status !== "pending") {
-      await session.abortTransaction();
       return res.status(400).json({ message: "Transaction already processed" });
     }
 
     // Add amount back to user balance
-    transaction.user.balance += transaction.amount + (transaction.fee || 0);
-    await transaction.user.save({ session });
+    if (transaction.user) {
+      transaction.user.balance += transaction.amount;
+      await transaction.user.save();
+    }
 
     transaction.status = "rejected";
-    await transaction.save({ session });
+    await transaction.save();
 
-    await session.commitTransaction();
     res.json({
       success: true,
       message: "Withdraw rejected and amount refunded",
     });
   } catch (error) {
-    await session.abortTransaction();
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    session.endSession();
   }
 };
 

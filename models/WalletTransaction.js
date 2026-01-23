@@ -23,6 +23,9 @@ const walletTransactionSchema = new mongoose.Schema(
         "Escrow",
         "USDT (TRC20)",
         "USDT (BEP20)",
+        "Signup Bonus",
+        "Referral Bonus",
+        "Bonus",
       ],
       required: function () {
         return this.type !== "escrow" && this.type !== "bonus";

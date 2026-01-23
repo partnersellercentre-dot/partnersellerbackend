@@ -195,13 +195,27 @@ const getSystemSettings = async (req, res) => {
 
 const updateSystemSettings = async (req, res) => {
   try {
-    const { signupBonus, referralBonus } = req.body;
+    const {
+      signupBonus,
+      referralBonus,
+      referralDepositSettings,
+      referralOrderSettings,
+    } = req.body;
     let settings = await SystemSettings.findOne();
     if (!settings) {
-      settings = new SystemSettings({ signupBonus, referralBonus });
+      settings = new SystemSettings({
+        signupBonus,
+        referralBonus,
+        referralDepositSettings,
+        referralOrderSettings,
+      });
     } else {
       if (signupBonus !== undefined) settings.signupBonus = signupBonus;
       if (referralBonus !== undefined) settings.referralBonus = referralBonus;
+      if (referralDepositSettings !== undefined)
+        settings.referralDepositSettings = referralDepositSettings;
+      if (referralOrderSettings !== undefined)
+        settings.referralOrderSettings = referralOrderSettings;
     }
     await settings.save();
     res.json({ message: "Settings updated successfully", settings });

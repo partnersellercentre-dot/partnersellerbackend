@@ -3,6 +3,7 @@ const Product = require("../models/Product");
 const Purchase = require("../models/Purchase");
 const Notification = require("../models/Notification");
 const WalletTransaction = require("../models/WalletTransaction");
+const { processReferralBonus } = require("../utils/bonusUtils");
 
 exports.buyProduct = async (req, res) => {
   try {
@@ -147,6 +148,10 @@ exports.claimProfit = async (req, res) => {
     const user = await User.findById(userId);
     user.balance += profitAmount;
     await user.save();
+
+    // Trigger Referral Bonus (Order Type)
+    // We pass profitAmount as the base for calculation
+    await processReferralBonus(userId, profitAmount, "order");
 
     // Update purchase status
     purchase.status = "paid";

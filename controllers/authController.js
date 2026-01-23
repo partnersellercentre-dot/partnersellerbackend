@@ -92,8 +92,8 @@ const registerWithOtp = async (req, res) => {
 
     // Apply Signup Bonus
     const settings = await SystemSettings.findOne();
-    const signupBonus = settings ? settings.signupBonus : 0;
-    const referralBonus = settings ? settings.referralBonus : 0;
+    const signupBonus = settings ? Number(settings.signupBonus) || 0 : 0;
+    // Removed immediate referral bonus logic
 
     if (signupBonus > 0) {
       user.balance = (user.balance || 0) + signupBonus;
@@ -104,27 +104,6 @@ const registerWithOtp = async (req, res) => {
         status: "approved",
         direction: "in",
         method: "Signup Bonus",
-      });
-    }
-
-    // Apply Referral Bonus to Referrer
-    if (referrer && referralBonus > 0) {
-      referrer.balance = (referrer.balance || 0) + referralBonus;
-      await referrer.save();
-
-      await WalletTransaction.create({
-        user: referrer._id,
-        amount: referralBonus,
-        type: "bonus",
-        status: "approved",
-        direction: "in",
-        method: "Referral Bonus",
-      });
-
-      await Notification.create({
-        title: "Referral Bonus Credited",
-        message: `You received $${referralBonus} bonus for referring ${user.name}.`,
-        user: referrer._id,
       });
     }
 
@@ -231,11 +210,11 @@ const registerWithUsername = async (req, res) => {
 
     // Apply Signup Bonus
     const settings = await SystemSettings.findOne();
-    const signupBonus = settings ? settings.signupBonus : 0;
-    const referralBonus = settings ? settings.referralBonus : 0;
+    const signupBonus = settings ? Number(settings.signupBonus) || 0 : 0;
+    const referralBonus = settings ? Number(settings.referralBonus) || 0 : 0;
 
     if (signupBonus > 0) {
-      user.balance += signupBonus;
+      user.balance = (user.balance || 0) + signupBonus;
       await WalletTransaction.create({
         user: user._id,
         amount: signupBonus,

@@ -17,8 +17,7 @@ exports.createPayment = async (req, res) => {
     const orderId = `NP_${Date.now()}`;
 
     // backend url for IPN
-    const backendUrl =
-      process.env.BACKEND_URL || "https://partnersellerbackend.vercel.app";
+    const backendUrl = process.env.BACKEND_URL;
 
     const response = await axios.post(
       `${BASE_URL}/payment`,
@@ -35,7 +34,7 @@ exports.createPayment = async (req, res) => {
           "x-api-key": NOWPAYMENTS_API_KEY,
           "Content-Type": "application/json",
         },
-      }
+      },
     );
 
     const paymentData = response.data;
@@ -59,7 +58,7 @@ exports.createPayment = async (req, res) => {
   } catch (error) {
     console.error(
       "NOWPayments Create Error:",
-      error.response?.data || error.message
+      error.response?.data || error.message,
     );
     res.status(500).json({
       success: false,
@@ -102,7 +101,7 @@ exports.handleIPN = async (req, res) => {
 
     if (payment_status === "finished") {
       const deposit = await Deposit.findOne({ orderId: order_id }).populate(
-        "user"
+        "user",
       );
       if (deposit && deposit.status === "pending") {
         deposit.status = "credited";
@@ -117,7 +116,7 @@ exports.handleIPN = async (req, res) => {
         await deposit.user.save();
 
         console.log(
-          `User ${deposit.user._id} balance updated with $${amountToAdd} via NOWPayments`
+          `User ${deposit.user._id} balance updated with $${amountToAdd} via NOWPayments`,
         );
       }
     }

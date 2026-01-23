@@ -2,6 +2,7 @@ const Deposit = require("../models/depositModel");
 const User = require("../models/User");
 const { verifyIpnRequest } = require("../utils/ipnVerifier");
 const loadPaykassa = require("../utils/paykassaClient");
+const { processReferralBonus } = require("../utils/bonusUtils");
 
 async function initDeposit(req, res) {
   try {
@@ -13,7 +14,7 @@ async function initDeposit(req, res) {
 
     const paykassa = new MerchantApi(
       process.env.PAYKASSA_MERCHANT_ID,
-      process.env.PAYKASSA_MERCHANT_PASSWORD
+      process.env.PAYKASSA_MERCHANT_PASSWORD,
     ).setTest(process.env.NODE_ENV === "development");
 
     // 🧩 Map network to Paykassa System constant
@@ -27,9 +28,10 @@ async function initDeposit(req, res) {
       return res.status(400).json({ error: "Invalid network" });
     }
 
-    // ✅ Set success and fail URLs dynamically (frontend domain)
-    const successUrl = "https://www.partnersellercentre.shop/success";
-    const failUrl = "https://www.partnersellercentre.shop/fail";
+    // ✅ Set success and fail URLs dynamically from environment
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    const successUrl = `${frontendUrl}/success`;
+    const failUrl = `${frontendUrl}/fail`;
 
     // 🪙 Create a deposit address
     const request = new GenerateAddressRequest()
@@ -83,7 +85,7 @@ async function handleIpn(req, res) {
     const { MerchantApi, CheckTransactionRequest } = await loadPaykassa();
     const merchantApi = new MerchantApi(
       process.env.PAYKASSA_MERCHANT_ID,
-      process.env.PAYKASSA_MERCHANT_PASSWORD
+      process.env.PAYKASSA_MERCHANT_PASSWORD,
     ).setTest(process.env.NODE_ENV === "development");
 
     if (!verifyIpnRequest(req)) {
@@ -110,14 +112,14 @@ async function handleIpn(req, res) {
     } else {
       // ✅ REAL MODE for production (Paykassa validation)
       const checkReq = new CheckTransactionRequest().setPrivateHash(
-        privateHash
+        privateHash,
       );
       const checkRes = await merchantApi.checkTransaction(checkReq);
 
       if (checkRes.getError()) {
         console.error(
           "Paykassa checkTransaction error:",
-          checkRes.getMessage()
+          checkRes.getMessage(),
         );
         return res.status(400).send("Error");
       }
@@ -147,6 +149,9 @@ async function handleIpn(req, res) {
       if (user) {
         user.balance = (user.balance || 0) + amountReceived;
         await user.save();
+
+        // Trigger Referral Bonus
+        await processReferralBonus(user._id, amountReceived, "deposit");
       }
     }
 
@@ -182,7 +187,7 @@ async function handleTransactionNotification(req, res) {
     const { MerchantApi, CheckTransactionRequest } = await loadPaykassa();
     const merchantApi = new MerchantApi(
       process.env.PAYKASSA_MERCHANT_ID,
-      process.env.PAYKASSA_MERCHANT_PASSWORD
+      process.env.PAYKASSA_MERCHANT_PASSWORD,
     ).setTest(process.env.NODE_ENV === "development");
 
     const privateHash = req.body.private_hash;
@@ -212,7 +217,7 @@ async function handleTransactionNotification(req, res) {
     if (!deposit) {
       console.warn(
         "Transaction notify: deposit not found for orderId",
-        orderId
+        orderId,
       );
       // respond anyway so Paykassa knows you got it
       return res.send(`${orderId}|success`);
@@ -236,6 +241,9 @@ async function handleTransactionNotification(req, res) {
       if (user) {
         user.balance = (user.balance || 0) + amount;
         await user.save();
+
+        // Trigger Referral Bonus
+        await processReferralBonus(user._id, amount, "deposit");
       }
     }
 

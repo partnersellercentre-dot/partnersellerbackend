@@ -1,0 +1,4 @@
+{
+  "ignore": ["node_modules", "uploads/*", ".git"],
+  "ext": "js,json,dotenv"
+}
