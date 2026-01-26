@@ -104,12 +104,12 @@ exports.releaseBuyerEscrow = async (req, res) => {
     )
       return res.status(404).json({ message: "Escrow transaction not found" });
 
-    // Check if 48 hours have passed since purchase
+    // Check if 24 hours have passed since purchase
     const now = new Date();
     const created = new Date(txn.purchase.createdAt);
     const secondsPassed = (now - created) / 1000;
-    if (secondsPassed < 172800)
-      return res.status(400).json({ message: "48 hours not completed yet" });
+    if (secondsPassed < 86400)
+      return res.status(400).json({ message: "24 hours not completed yet" });
 
     if (txn.status === "approved") {
       return res.status(400).json({ message: "Funds already released" });

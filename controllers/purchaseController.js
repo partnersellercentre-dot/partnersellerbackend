@@ -125,15 +125,15 @@ exports.claimProfit = async (req, res) => {
     if (purchase.status !== "to_be_paid") {
       return res.status(400).json({ message: "Profit already claimed" });
     }
-    // Check if 48 hours seconds have passed (for testing)
+    // Check if 24 hours seconds have passed (for testing)
     const purchaseTime = new Date(purchase.createdAt);
     const now = new Date();
     const secondsSincePurchase = (now - purchaseTime) / 1000; // convert ms to seconds
 
-    if (secondsSincePurchase < 172800) {
+    if (secondsSincePurchase < 86400) {
       return res.status(400).json({
-        message: `Profit can only be claimed after 48 hours. Please wait ${Math.ceil(
-          (172800 - secondsSincePurchase) / 3600,
+        message: `Profit can only be claimed after 24 hours. Please wait ${Math.ceil(
+          (86400 - secondsSincePurchase) / 3600,
         )} more hour(s).`,
       });
     }

@@ -376,11 +376,17 @@ const updateProfile = async (req, res) => {
     // If file uploaded, upload to Cloudinary
     if (req.file) {
       console.log("File uploaded, processing image...");
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "profile_images",
-        use_filename: true,
-        unique_filename: false,
-      });
+      const streamUpload = (buffer) => {
+        return new Promise((resolve, reject) => {
+          cloudinary.uploader
+            .upload_stream({ folder: "profile_images" }, (error, result) => {
+              if (result) resolve(result);
+              else reject(error);
+            })
+            .end(buffer);
+        });
+      };
+      const result = await streamUpload(req.file.buffer);
       updateData.profileImage = result.secure_url;
     }
 
