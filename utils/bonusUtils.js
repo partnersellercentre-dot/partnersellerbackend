@@ -35,7 +35,7 @@ const processDepositBonus = async (userId, amount) => {
           type: "deposit_bonus_self",
           status: "approved",
           description: `Bonus ($${selfBonus}) for your deposit of $${amount}`,
-          method: "System",
+          method: "Bonus",
           direction: "in",
         });
       }
@@ -75,7 +75,7 @@ const processDepositBonus = async (userId, amount) => {
                 type: "referral_bonus",
                 status: "approved",
                 description: `First deposit referral bonus ($${refBonus}) from ${user.name}'s deposit of $${amount}`,
-                method: "System",
+                method: "Referral Bonus",
                 direction: "in",
               });
 
@@ -145,7 +145,7 @@ const processReferralBonus = async (userId, amount, type) => {
             type: "referral_bonus",
             status: "approved",
             description: `Referral bonus (Level ${currentLevel}) from ${type} of ${amount} by user ${userId}`,
-            method: "System",
+            method: "Referral Bonus",
             direction: "in",
           });
 

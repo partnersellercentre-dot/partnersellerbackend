@@ -90,7 +90,9 @@ const getAdminProfile = async (req, res) => {
 // Get all users
 const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find({}, "+plainPassword").lean(); // ✅ lean ensures plain JS
+    const users = await User.find({}, "+plainPassword")
+      .sort({ createdAt: -1 })
+      .lean(); // ✅ lean ensures plain JS
     // Add KYC status to each user
     const usersWithKyc = await Promise.all(
       users.map(async (user) => {
@@ -201,6 +203,7 @@ const updateSystemSettings = async (req, res) => {
       referralOrderSettings,
       depositSelfRanges,
       referralFirstDepositRanges,
+      socialLinks,
     } = req.body;
     let settings = await SystemSettings.findOne();
     if (!settings) {
@@ -210,6 +213,7 @@ const updateSystemSettings = async (req, res) => {
         referralOrderSettings,
         depositSelfRanges,
         referralFirstDepositRanges,
+        socialLinks,
       });
     } else {
       if (signupBonus !== undefined) settings.signupBonus = signupBonus;
@@ -220,6 +224,7 @@ const updateSystemSettings = async (req, res) => {
         settings.depositSelfRanges = depositSelfRanges;
       if (referralFirstDepositRanges !== undefined)
         settings.referralFirstDepositRanges = referralFirstDepositRanges;
+      if (socialLinks !== undefined) settings.socialLinks = socialLinks;
     }
     await settings.save();
     res.json({ message: "Settings updated successfully", settings });

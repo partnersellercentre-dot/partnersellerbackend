@@ -40,6 +40,12 @@ const systemSettingsSchema = new mongoose.Schema(
     // Range-based Deposit Settings
     depositSelfRanges: [RangeSchema],
     referralFirstDepositRanges: [RangeSchema],
+
+    // Social Links
+    socialLinks: {
+      whatsapp: { type: String, default: "https://wa.me/923166226704" },
+      telegram: { type: String, default: "https://t.me/+923166226704" },
+    },
   },
   { timestamps: true },
 );

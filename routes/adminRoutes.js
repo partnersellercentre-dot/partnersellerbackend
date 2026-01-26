@@ -54,4 +54,22 @@ router.put("/users/:id/status", adminProtect, admin, updateUserStatus);
 router.get("/settings", adminProtect, admin, getSystemSettings);
 router.put("/settings", adminProtect, admin, updateSystemSettings);
 
+// Public: Get Social Links
+router.get("/social-links", async (req, res) => {
+  try {
+    let settings = await SystemSettings.findOne();
+    if (!settings) {
+      settings = await SystemSettings.create({
+        socialLinks: {
+          whatsapp: "https://wa.me/923166226704",
+          telegram: "https://t.me/+923166226704",
+        },
+      });
+    }
+    res.json({ socialLinks: settings.socialLinks });
+  } catch (err) {
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
+});
+
 module.exports = router;

@@ -7,7 +7,14 @@ const walletTransactionSchema = new mongoose.Schema(
     amount: { type: Number, required: true },
     type: {
       type: String,
-      enum: ["deposit", "withdraw", "escrow", "bonus"],
+      enum: [
+        "deposit",
+        "withdraw",
+        "escrow",
+        "bonus",
+        "deposit_bonus_self",
+        "referral_bonus",
+      ],
       required: true,
     },
     purchase: { type: mongoose.Schema.Types.ObjectId, ref: "Purchase" }, // <-- add this line

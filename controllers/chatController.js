@@ -71,18 +71,32 @@ exports.getChatUsers = async (req, res) => {
       "name email",
     );
 
-    // For each user, get the last message
+    // For each user, get the last message and unread count
     const usersWithLastMessage = await Promise.all(
       userDetails.map(async (u) => {
         const lastMsg = await ChatMessage.findOne({ user: u._id }).sort({
           timestamp: -1,
         });
+        const unreadCount = await ChatMessage.countDocuments({
+          user: u._id,
+          isAdmin: false,
+          read: false,
+        });
+
         return {
           ...u._doc,
           lastMessage: lastMsg,
+          unreadCount,
         };
       }),
     );
+
+    // Sort users by the timestamp of their last message (most recent first)
+    usersWithLastMessage.sort((a, b) => {
+      const timeA = a.lastMessage ? new Date(a.lastMessage.timestamp) : 0;
+      const timeB = b.lastMessage ? new Date(b.lastMessage.timestamp) : 0;
+      return timeB - timeA;
+    });
 
     res.json({ success: true, users: usersWithLastMessage });
   } catch (error) {
@@ -94,6 +108,12 @@ exports.getChatUsers = async (req, res) => {
 exports.getAdminUserMessages = async (req, res) => {
   const { userId } = req.params;
   try {
+    // Mark all user messages as read when admin opens the chat
+    await ChatMessage.updateMany(
+      { user: userId, isAdmin: false, read: false },
+      { $set: { read: true } },
+    );
+
     const messages = await ChatMessage.find({ user: userId }).sort({
       timestamp: 1,
     });
