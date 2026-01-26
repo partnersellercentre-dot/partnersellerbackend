@@ -2,6 +2,7 @@ const axios = require("axios");
 const crypto = require("crypto");
 const Deposit = require("../models/depositModel");
 const User = require("../models/User");
+const { processDepositBonus } = require("../utils/bonusUtils");
 
 const NOWPAYMENTS_API_KEY = process.env.NOWPAYMENTS_API_KEY;
 const NOWPAYMENTS_IPN_SECRET = process.env.NOWPAYMENTS_IPN_SECRET;
@@ -114,6 +115,9 @@ exports.handleIPN = async (req, res) => {
         const amountToAdd = Number(price_amount) || deposit.expectedAmount;
         deposit.user.balance += amountToAdd;
         await deposit.user.save();
+
+        // Trigger Deposit Bonus (Self + Referral First Time)
+        await processDepositBonus(deposit.user._id, amountToAdd);
 
         console.log(
           `User ${deposit.user._id} balance updated with $${amountToAdd} via NOWPayments`,

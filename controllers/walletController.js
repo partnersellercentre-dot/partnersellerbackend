@@ -3,6 +3,7 @@ const Deposit = require("../models/depositModel");
 const User = require("../models/User");
 const mongoose = require("mongoose");
 const Notification = require("../models/Notification");
+const { processDepositBonus } = require("../utils/bonusUtils");
 // ------------------ DEPOSIT ------------------
 
 // User initiates deposit
@@ -16,6 +17,7 @@ exports.depositRequest = async (req, res) => {
       amount,
       method,
       type: "deposit",
+      direction: "in",
       screenshot: screenshot || null,
       status: "pending",
     });
@@ -58,6 +60,9 @@ exports.approveDeposit = async (req, res) => {
     // Add balance to user
     transaction.user.balance += transaction.amount;
     await transaction.user.save();
+
+    // Trigger Deposit Bonus (Self + Referral First Time)
+    await processDepositBonus(transaction.user._id, transaction.amount);
 
     res.json({ success: true, message: "Deposit approved", transaction });
   } catch (error) {

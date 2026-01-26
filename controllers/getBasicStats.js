@@ -12,7 +12,7 @@ exports.getBasicStats = async (req, res) => {
 
     // Get current user
     const user = await User.findById(userId).select(
-      "-passwordHash -otp -otpExpires"
+      "-passwordHash -otp -otpExpires",
     );
 
     // User's total sales (sum of all their purchases' amount)
@@ -21,6 +21,9 @@ exports.getBasicStats = async (req, res) => {
       { $group: { _id: null, total: { $sum: "$amount" } } },
     ]);
     const userTotalSales = userTotalSalesAgg[0]?.total || 0;
+
+    // Profit Ratio
+    const profitPercent = 4.2;
 
     // Current month sales for user
     const now = new Date();
@@ -54,12 +57,14 @@ exports.getBasicStats = async (req, res) => {
     ]);
     const inTransaction = userInTransactionAgg[0]?.total || 0;
 
-    // User's total profit (sum of all claimed profits)
+    // User's total profit (sum of all claimed profits * profitPercent)
     const userTotalProfitAgg = await Purchase.aggregate([
       { $match: { user: user._id, status: "paid" } },
       { $group: { _id: null, total: { $sum: "$amount" } } },
     ]);
-    const totalProfit = userTotalProfitAgg[0]?.total || 0;
+    const totalProfit = Math.round(
+      ((userTotalProfitAgg[0]?.total || 0) * profitPercent) / 100,
+    );
 
     // User's profit for the month
     const userProfitThisMonthAgg = await Purchase.aggregate([
@@ -72,7 +77,9 @@ exports.getBasicStats = async (req, res) => {
       },
       { $group: { _id: null, total: { $sum: "$amount" } } },
     ]);
-    const profitThisMonth = userProfitThisMonthAgg[0]?.total || 0;
+    const profitThisMonth = Math.round(
+      ((userProfitThisMonthAgg[0]?.total || 0) * profitPercent) / 100,
+    );
 
     const userProfitLastMonthAgg = await Purchase.aggregate([
       {
@@ -84,7 +91,9 @@ exports.getBasicStats = async (req, res) => {
       },
       { $group: { _id: null, total: { $sum: "$amount" } } },
     ]);
-    const profitLastMonth = userProfitLastMonthAgg[0]?.total || 0;
+    const profitLastMonth = Math.round(
+      ((userProfitLastMonthAgg[0]?.total || 0) * profitPercent) / 100,
+    );
 
     // User's total number of orders
     const totalOrders = await Purchase.countDocuments({ user: user._id });

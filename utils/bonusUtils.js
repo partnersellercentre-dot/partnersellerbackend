@@ -43,13 +43,18 @@ const processDepositBonus = async (userId, amount) => {
 
     // 2. Referrer Bonus (First Deposit Only, Range based)
     if (user.referredBy) {
-      // Check if this is the first credited deposit
+      // Check if this is the first credited deposit (checking both automated and manual)
       const depositCount = await Deposit.countDocuments({
         user: userId,
         status: "credited",
       });
+      const manualDepositCount = await WalletTransaction.countDocuments({
+        user: userId,
+        type: "deposit",
+        status: "approved",
+      });
 
-      if (depositCount === 1) {
+      if (depositCount + manualDepositCount === 1) {
         // Find matching range for this amount
         const referralRanges = settings.referralFirstDepositRanges || [];
         const referralRange = referralRanges.find(
