@@ -90,8 +90,11 @@ const getAdminProfile = async (req, res) => {
 // Get all users
 const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find({}, "+plainPassword")
-      .sort({ createdAt: -1 })
+    const users = await User.find(
+      { isDeleted: { $ne: true } },
+      "+plainPassword",
+    )
+      .sort({ _id: -1 })
       .lean(); // ✅ lean ensures plain JS
     // Add KYC status to each user
     const usersWithKyc = await Promise.all(
@@ -128,14 +131,16 @@ const updateUserStatus = async (req, res) => {
   }
 };
 
-// Delete user
+// Delete user (soft delete)
 const deleteUserById = async (req, res) => {
   try {
     const { id } = req.params;
-    const user = await User.findByIdAndDelete(id);
+    const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
+    user.isDeleted = true;
+    await user.save();
     res.status(200).json({ message: "User deleted successfully" });
   } catch (err) {
     console.error("Delete user error:", err.message);
