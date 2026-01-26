@@ -9,6 +9,9 @@ const {
   updateUserStatus,
   getSystemSettings,
   updateSystemSettings,
+  getAllAdmins,
+  deleteAdmin,
+  updateAdmin,
 } = require("../controllers/adminController");
 const { admin, adminProtect } = require("../middleware/authMiddleware");
 const Purchase = require("../models/Purchase"); // Add at top
@@ -17,7 +20,7 @@ const SystemSettings = require("../models/SystemSettings"); // Add this import
 const router = express.Router();
 
 // Register Admin
-router.post("/register", registerAdmin);
+router.post("/register", adminProtect, admin, registerAdmin);
 
 // Login Admin
 router.post("/login", loginAdmin);
@@ -50,6 +53,11 @@ router.put("/verify/:id", adminProtect, admin, verifyOrRejectKYC);
 router.get("/admin-profile", adminProtect, admin, getAdminProfile);
 router.delete("/users/:id", adminProtect, deleteUserById); // DELETE route to delete a user
 router.put("/users/:id/status", adminProtect, admin, updateUserStatus);
+
+// Admins Management
+router.get("/all-admins", adminProtect, admin, getAllAdmins);
+router.delete("/admins/:id", adminProtect, admin, deleteAdmin);
+router.put("/admins/:id", adminProtect, admin, updateAdmin);
 
 // System Settings
 router.get("/settings", adminProtect, admin, getSystemSettings);

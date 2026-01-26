@@ -238,6 +238,44 @@ const updateSystemSettings = async (req, res) => {
   }
 };
 
+// --- Admin Management ---
+const getAllAdmins = async (req, res) => {
+  try {
+    const admins = await Admin.find({}, "-password");
+    res.json({ admins });
+  } catch (err) {
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
+};
+
+const deleteAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Prevent self-deletion if needed, or just allow it
+    await Admin.findByIdAndDelete(id);
+    res.json({ message: "Admin deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
+};
+
+const updateAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { username, password } = req.body;
+    const admin = await Admin.findById(id);
+    if (!admin) return res.status(404).json({ error: "Admin not found" });
+
+    if (username) admin.username = username;
+    if (password) admin.password = password; // Pre-save hook will hash it
+
+    await admin.save();
+    res.json({ message: "Admin updated successfully", admin });
+  } catch (err) {
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
+};
+
 module.exports = {
   registerAdmin,
   loginAdmin,
@@ -249,4 +287,7 @@ module.exports = {
   verifyOrRejectKYC, // ✅ add this line
   getSystemSettings,
   updateSystemSettings,
+  getAllAdmins,
+  deleteAdmin,
+  updateAdmin,
 };
