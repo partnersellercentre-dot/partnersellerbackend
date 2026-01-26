@@ -1,6 +1,7 @@
 const ChatMessage = require("../models/ChatMessage");
 const User = require("../models/User");
 const Pusher = require("pusher");
+const cloudinary = require("../middleware/cloudinary");
 
 const pusher = new Pusher({
   appId: process.env.PUSHER_APP_ID,
@@ -26,10 +27,28 @@ exports.getUserMessages = async (req, res) => {
 exports.sendMessageToAdmin = async (req, res) => {
   const { message } = req.body;
   try {
+    let imageUrl = null;
+
+    if (req.file) {
+      const streamUpload = (buffer) => {
+        return new Promise((resolve, reject) => {
+          cloudinary.uploader
+            .upload_stream({ folder: "chat_images" }, (error, result) => {
+              if (result) resolve(result);
+              else reject(error);
+            })
+            .end(buffer);
+        });
+      };
+      const result = await streamUpload(req.file.buffer);
+      imageUrl = result.secure_url;
+    }
+
     const newMessage = await ChatMessage.create({
       sender: req.user._id,
       user: req.user._id,
-      message,
+      message: message || "",
+      imageUrl,
       isAdmin: false,
     });
 
@@ -89,10 +108,28 @@ exports.replyToUser = async (req, res) => {
   const { userId } = req.params;
   const { message } = req.body;
   try {
+    let imageUrl = null;
+
+    if (req.file) {
+      const streamUpload = (buffer) => {
+        return new Promise((resolve, reject) => {
+          cloudinary.uploader
+            .upload_stream({ folder: "chat_images" }, (error, result) => {
+              if (result) resolve(result);
+              else reject(error);
+            })
+            .end(buffer);
+        });
+      };
+      const result = await streamUpload(req.file.buffer);
+      imageUrl = result.secure_url;
+    }
+
     const newMessage = await ChatMessage.create({
       sender: req.admin._id, // Admin ID from adminProtect middleware
       user: userId,
-      message,
+      message: message || "",
+      imageUrl,
       isAdmin: true,
     });
 

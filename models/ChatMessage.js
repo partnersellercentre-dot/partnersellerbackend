@@ -11,7 +11,11 @@ const chatMessageSchema = new mongoose.Schema({
   },
   message: {
     type: String,
-    required: true,
+    required: false,
+  },
+  imageUrl: {
+    type: String,
+    default: null,
   },
   isAdmin: {
     type: Boolean,
