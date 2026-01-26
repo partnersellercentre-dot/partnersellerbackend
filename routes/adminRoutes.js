@@ -13,6 +13,7 @@ const {
 const { admin, adminProtect } = require("../middleware/authMiddleware");
 const Purchase = require("../models/Purchase"); // Add at top
 const WalletTransaction = require("../models/WalletTransaction"); // Add at top
+const SystemSettings = require("../models/SystemSettings"); // Add this import
 const router = express.Router();
 
 // Register Admin
