@@ -3,6 +3,7 @@ const Deposit = require("../models/depositModel");
 const User = require("../models/User");
 const mongoose = require("mongoose");
 const Notification = require("../models/Notification");
+const SystemSettings = require("../models/SystemSettings");
 const { processDepositBonus } = require("../utils/bonusUtils");
 // ------------------ DEPOSIT ------------------
 
@@ -151,8 +152,55 @@ exports.withdrawRequest = async (req, res) => {
     const userId = req.user.id;
 
     const user = await User.findById(userId);
-    if (!user || user.balance < amount) {
-      return res.status(400).json({ message: "Insufficient balance" });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const settings = await SystemSettings.findOne();
+    let withdrawableBalance = user.balance;
+
+    if (settings?.restrictWithdrawalToProfits) {
+      // Sum of all profits and bonuses received
+      const totalProfitsAndBonusesAgg = await WalletTransaction.aggregate([
+        {
+          $match: {
+            user: user._id,
+            status: "approved",
+            type: {
+              $in: ["profit", "deposit_bonus_self", "referral_bonus", "bonus"],
+            },
+            direction: "in",
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ]);
+      const totalProfitsAndBonuses = totalProfitsAndBonusesAgg[0]?.total || 0;
+
+      // Sum of all withdrawals (pending or approved)
+      const totalWithdrawnAgg = await WalletTransaction.aggregate([
+        {
+          $match: {
+            user: user._id,
+            status: { $in: ["pending", "approved"] },
+            type: "withdraw",
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ]);
+      const totalWithdrawn = totalWithdrawnAgg[0]?.total || 0;
+
+      withdrawableBalance = Math.max(
+        0,
+        totalProfitsAndBonuses - totalWithdrawn,
+      );
+      // It should not exceed current balance
+      withdrawableBalance = Math.min(withdrawableBalance, user.balance);
+    }
+
+    if (withdrawableBalance < amount) {
+      return res
+        .status(400)
+        .json({ message: "Insufficient withdrawable balance" });
     }
 
     const fee = Math.round(amount * 0.038 * 100) / 100; // round to 2 decimals
@@ -290,7 +338,53 @@ exports.getMyTransactions = async (req, res) => {
 
     const user = await User.findById(userId).select("balance name email");
 
-    res.json({ success: true, transactions, user });
+    const settings = await SystemSettings.findOne();
+    let withdrawableBalance = user.balance;
+
+    if (settings?.restrictWithdrawalToProfits) {
+      // Sum of all profits and bonuses received
+      const totalProfitsAndBonusesAgg = await WalletTransaction.aggregate([
+        {
+          $match: {
+            user: user._id,
+            status: "approved",
+            type: {
+              $in: ["profit", "deposit_bonus_self", "referral_bonus", "bonus"],
+            },
+            direction: "in",
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ]);
+      const totalProfitsAndBonuses = totalProfitsAndBonusesAgg[0]?.total || 0;
+
+      // Sum of all withdrawals (pending or approved)
+      const totalWithdrawnAgg = await WalletTransaction.aggregate([
+        {
+          $match: {
+            user: user._id,
+            status: { $in: ["pending", "approved"] },
+            type: "withdraw",
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ]);
+      const totalWithdrawn = totalWithdrawnAgg[0]?.total || 0;
+
+      withdrawableBalance = Math.max(
+        0,
+        totalProfitsAndBonuses - totalWithdrawn,
+      );
+      withdrawableBalance = Math.min(withdrawableBalance, user.balance);
+    }
+
+    res.json({
+      success: true,
+      transactions,
+      user,
+      withdrawableBalance,
+      isRestricted: settings?.restrictWithdrawalToProfits || false,
+    });
   } catch (error) {
     console.error("getMyTransactions Error:", error);
     res.status(500).json({ success: false, message: error.message });

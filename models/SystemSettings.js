@@ -46,6 +46,14 @@ const systemSettingsSchema = new mongoose.Schema(
       whatsapp: { type: String, default: "https://wa.me/923166226704" },
       telegram: { type: String, default: "https://t.me/+923166226704" },
     },
+    pkrRate: {
+      type: Number,
+      default: 280,
+    },
+    restrictWithdrawalToProfits: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true },
 );

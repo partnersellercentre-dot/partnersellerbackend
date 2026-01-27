@@ -209,6 +209,7 @@ const updateSystemSettings = async (req, res) => {
       depositSelfRanges,
       referralFirstDepositRanges,
       socialLinks,
+      restrictWithdrawalToProfits,
     } = req.body;
     let settings = await SystemSettings.findOne();
     if (!settings) {
@@ -219,6 +220,7 @@ const updateSystemSettings = async (req, res) => {
         depositSelfRanges,
         referralFirstDepositRanges,
         socialLinks,
+        restrictWithdrawalToProfits,
       });
     } else {
       if (signupBonus !== undefined) settings.signupBonus = signupBonus;
@@ -230,6 +232,8 @@ const updateSystemSettings = async (req, res) => {
       if (referralFirstDepositRanges !== undefined)
         settings.referralFirstDepositRanges = referralFirstDepositRanges;
       if (socialLinks !== undefined) settings.socialLinks = socialLinks;
+      if (restrictWithdrawalToProfits !== undefined)
+        settings.restrictWithdrawalToProfits = restrictWithdrawalToProfits;
     }
     await settings.save();
     res.json({ message: "Settings updated successfully", settings });

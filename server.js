@@ -75,6 +75,7 @@ app.use("/api/referral", require("./routes/referralRoutes"));
 app.use("/api/announcements", announcementRoutes);
 app.use("/api/statistics", require("./routes/useStatistics"));
 app.use("/api/chat", require("./routes/chatRoutes"));
+app.use("/api/safepay", require("./routes/safepayRoutes"));
 
 // ✅ Local development
 if (require.main === module) {

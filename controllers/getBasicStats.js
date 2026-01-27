@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const Purchase = require("../models/Purchase");
 const WalletTransaction = require("../models/WalletTransaction");
+const SystemSettings = require("../models/SystemSettings");
 
 exports.getBasicStats = async (req, res) => {
   try {
@@ -14,6 +15,8 @@ exports.getBasicStats = async (req, res) => {
     const user = await User.findById(userId).select(
       "-passwordHash -otp -otpExpires",
     );
+
+    const settings = await SystemSettings.findOne();
 
     // User's total sales (sum of all their purchases' amount)
     const userTotalSalesAgg = await Purchase.aggregate([
@@ -56,6 +59,46 @@ exports.getBasicStats = async (req, res) => {
       { $group: { _id: null, total: { $sum: "$amount" } } },
     ]);
     const inTransaction = userInTransactionAgg[0]?.total || 0;
+
+    // Calculate Withdrawable Balance if restricted
+    let withdrawableBalance = availableBalance;
+    if (settings?.restrictWithdrawalToProfits) {
+      // Sum of all profits and bonuses received
+      const totalProfitsAndBonusesAgg = await WalletTransaction.aggregate([
+        {
+          $match: {
+            user: user._id,
+            status: "approved",
+            type: {
+              $in: ["profit", "deposit_bonus_self", "referral_bonus", "bonus"],
+            },
+            direction: "in",
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ]);
+      const totalProfitsAndBonuses = totalProfitsAndBonusesAgg[0]?.total || 0;
+
+      // Sum of all withdrawals (pending or approved)
+      const totalWithdrawnAgg = await WalletTransaction.aggregate([
+        {
+          $match: {
+            user: user._id,
+            status: { $in: ["pending", "approved"] },
+            type: "withdraw",
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ]);
+      const totalWithdrawn = totalWithdrawnAgg[0]?.total || 0;
+
+      withdrawableBalance = Math.max(
+        0,
+        totalProfitsAndBonuses - totalWithdrawn,
+      );
+      // It should not exceed current balance
+      withdrawableBalance = Math.min(withdrawableBalance, availableBalance);
+    }
 
     // User's total profit (sum of all claimed profits * profitPercent)
     const userTotalProfitAgg = await Purchase.aggregate([
@@ -120,6 +163,8 @@ exports.getBasicStats = async (req, res) => {
       currentMonthSales: userCurrentMonthSales,
       lastMonthSales: userLastMonthSales,
       availableBalance,
+      withdrawableBalance,
+      restrictWithdrawalToProfits: !!settings?.restrictWithdrawalToProfits,
       inTransaction,
       complaints: 0,
       totalProfit,
