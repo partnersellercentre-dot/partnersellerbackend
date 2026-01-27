@@ -117,12 +117,26 @@ exports.releaseBuyerEscrow = async (req, res) => {
 
     txn.status = "approved";
     await txn.save();
-    txn.user.balance += txn.amount;
-    await txn.user.save();
+
+    // Add balance to user
+    const user = await User.findById(txn.user._id);
+    user.balance = Math.round((user.balance + txn.amount) * 100) / 100;
+    await user.save();
+
+    // Create a new transaction record for the release/transfer in
+    await WalletTransaction.create({
+      user: txn.user._id,
+      amount: txn.amount,
+      type: "transfer",
+      status: "approved",
+      direction: "in",
+      purchase: txn.purchase?._id,
+      method: "Transfer",
+    });
 
     res.json({
       success: true,
-      message: "Funds released to your wallet",
+      message: "Funds transferred to your wallet",
       transaction: txn,
     });
   } catch (error) {

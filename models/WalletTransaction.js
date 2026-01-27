@@ -14,6 +14,8 @@ const walletTransactionSchema = new mongoose.Schema(
         "bonus",
         "deposit_bonus_self",
         "referral_bonus",
+        "profit",
+        "transfer",
       ],
       required: true,
     },

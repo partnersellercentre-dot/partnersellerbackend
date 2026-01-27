@@ -140,14 +140,24 @@ exports.claimProfit = async (req, res) => {
 
     // Calculate profit (e.g., 4.2%)
     const profitPercent = 4.2;
-    const profitAmount = Math.round(
-      (purchase.product.price * profitPercent) / 100,
-    );
+    const profitAmount =
+      Math.round(((purchase.product.price * profitPercent) / 100) * 100) / 100;
 
     // Add profit to user's wallet
     const user = await User.findById(userId);
-    user.balance += profitAmount;
+    user.balance = Math.round((user.balance + profitAmount) * 100) / 100;
     await user.save();
+
+    // Create a transaction record for the profit
+    await WalletTransaction.create({
+      user: userId,
+      amount: profitAmount,
+      type: "profit",
+      status: "approved",
+      direction: "in",
+      purchase: purchase._id,
+      method: "Profit",
+    });
 
     // Trigger Referral Bonus (Order Type)
     // We pass profitAmount as the base for calculation
