@@ -35,13 +35,22 @@ const walletTransactionSchema = new mongoose.Schema(
         "Signup Bonus",
         "Referral Bonus",
         "Bonus",
+        "Profit",
+        "Transfer",
       ],
       required: function () {
-        return this.type !== "escrow" && this.type !== "bonus";
+        return (
+          this.type !== "escrow" &&
+          this.type !== "bonus" &&
+          this.type !== "profit" &&
+          this.type !== "transfer"
+        );
       },
       default: function () {
         if (this.type === "escrow") return "Escrow";
         if (this.type === "bonus") return "Bonus";
+        if (this.type === "profit") return "Profit";
+        if (this.type === "transfer") return "Transfer";
         return undefined;
       },
     },
