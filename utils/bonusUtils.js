@@ -27,6 +27,8 @@ const processDepositBonus = async (userId, amount) => {
       const selfBonus = selfRange.bonus; // Exact amount now
       if (selfBonus > 0) {
         user.balance = (user.balance || 0) + selfBonus;
+        user.selfRechargeBonusBalance =
+          (user.selfRechargeBonusBalance || 0) + selfBonus;
         await user.save();
 
         await WalletTransaction.create({
@@ -67,15 +69,17 @@ const processDepositBonus = async (userId, amount) => {
             const refBonus = referralRange.bonus; // Exact amount (user requested "ranges")
             if (refBonus > 0) {
               referrer.balance = (referrer.balance || 0) + refBonus;
+              referrer.referralRechargeBonusBalance =
+                (referrer.referralRechargeBonusBalance || 0) + refBonus;
               await referrer.save();
 
               await WalletTransaction.create({
                 user: referrer._id,
                 amount: refBonus,
-                type: "referral_bonus",
+                type: "referral_recharge_bonus",
                 status: "approved",
                 description: `First deposit referral bonus ($${refBonus}) from ${user.name}'s deposit of $${amount}`,
-                method: "Referral Bonus",
+                method: "Referral Recharge Bonus",
                 direction: "in",
               });
 
@@ -136,16 +140,18 @@ const processReferralBonus = async (userId, amount, type) => {
         if (bonusAmount > 0) {
           // Apply bonus
           referrer.balance = (referrer.balance || 0) + bonusAmount;
+          referrer.teamCommissionBalance =
+            (referrer.teamCommissionBalance || 0) + bonusAmount;
           await referrer.save();
 
           // Record transaction
           await WalletTransaction.create({
             user: referrer._id,
             amount: bonusAmount,
-            type: "referral_bonus",
+            type: "team_commission",
             status: "approved",
             description: `Referral bonus (Level ${currentLevel}) from ${type} of ${amount} by user ${userId}`,
-            method: "Referral Bonus",
+            method: "Team Commission",
             direction: "in",
           });
 

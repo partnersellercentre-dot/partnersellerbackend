@@ -14,6 +14,8 @@ const walletTransactionSchema = new mongoose.Schema(
         "bonus",
         "deposit_bonus_self",
         "referral_bonus",
+        "referral_recharge_bonus",
+        "team_commission",
         "profit",
         "transfer",
       ],
@@ -34,6 +36,8 @@ const walletTransactionSchema = new mongoose.Schema(
         "USDT (BEP20)",
         "Signup Bonus",
         "Referral Bonus",
+        "Team Commission",
+        "Referral Recharge Bonus",
         "Bonus",
         "Profit",
         "Transfer",
@@ -65,6 +69,14 @@ const walletTransactionSchema = new mongoose.Schema(
     },
     fee: { type: Number, default: 0 }, // <-- add this
     netAmount: { type: Number, default: 0 }, // <-- add this
+    // Track which sub-balances were deducted for withdrawals/purchases
+    deductions: {
+      balance: { type: Number, default: 0 },
+      profit: { type: Number, default: 0 },
+      selfBonus: { type: Number, default: 0 },
+      teamCommission: { type: Number, default: 0 },
+      referralBonus: { type: Number, default: 0 },
+    },
   },
   { timestamps: true },
 );

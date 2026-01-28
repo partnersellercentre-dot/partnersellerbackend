@@ -156,58 +156,83 @@ exports.withdrawRequest = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    const earnedBalance =
+      (user.profitBalance || 0) +
+      (user.teamCommissionBalance || 0) +
+      (user.referralRechargeBonusBalance || 0) +
+      (user.selfRechargeBonusBalance || 0);
+
     const settings = await SystemSettings.findOne();
-    let withdrawableBalance = user.balance;
+    let maxWithdrawable = user.balance;
 
     if (settings?.restrictWithdrawalToProfits) {
-      // Sum of all profits and bonuses received
-      const totalProfitsAndBonusesAgg = await WalletTransaction.aggregate([
-        {
-          $match: {
-            user: user._id,
-            status: "approved",
-            type: {
-              $in: ["profit", "deposit_bonus_self", "referral_bonus", "bonus"],
-            },
-            direction: "in",
-          },
-        },
-        { $group: { _id: null, total: { $sum: "$amount" } } },
-      ]);
-      const totalProfitsAndBonuses = totalProfitsAndBonusesAgg[0]?.total || 0;
-
-      // Sum of all withdrawals (pending or approved)
-      const totalWithdrawnAgg = await WalletTransaction.aggregate([
-        {
-          $match: {
-            user: user._id,
-            status: { $in: ["pending", "approved"] },
-            type: "withdraw",
-          },
-        },
-        { $group: { _id: null, total: { $sum: "$amount" } } },
-      ]);
-      const totalWithdrawn = totalWithdrawnAgg[0]?.total || 0;
-
-      withdrawableBalance = Math.max(
-        0,
-        totalProfitsAndBonuses - totalWithdrawn,
-      );
-      // It should not exceed current balance
-      withdrawableBalance = Math.min(withdrawableBalance, user.balance);
+      maxWithdrawable = earnedBalance;
     }
 
-    if (withdrawableBalance < amount) {
-      return res
-        .status(400)
-        .json({ message: "Insufficient withdrawable balance" });
+    if (maxWithdrawable < amount) {
+      return res.status(400).json({
+        message: settings?.restrictWithdrawalToProfits
+          ? "Insufficient earned balance"
+          : "Insufficient balance",
+      });
     }
 
     const fee = Math.round(amount * 0.038 * 100) / 100; // round to 2 decimals
     const netAmount = Math.round((amount - fee) * 100) / 100;
 
-    // Deduct amount from user balance (amount already includes fee)
-    user.balance -= amount;
+    // Deduct with priority: Profits/Bonuses first
+    let remainingToDeduct = amount;
+    const deductions = {
+      balance: 0,
+      profit: 0,
+      teamCommission: 0,
+      referralBonus: 0,
+      selfBonus: 0,
+    };
+
+    const fromProfit = Math.min(user.profitBalance, remainingToDeduct);
+    user.profitBalance -= fromProfit;
+    user.balance -= fromProfit;
+    remainingToDeduct -= fromProfit;
+    deductions.profit = fromProfit;
+
+    if (remainingToDeduct > 0) {
+      const fromTeam = Math.min(user.teamCommissionBalance, remainingToDeduct);
+      user.teamCommissionBalance -= fromTeam;
+      user.balance -= fromTeam;
+      remainingToDeduct -= fromTeam;
+      deductions.teamCommission = fromTeam;
+    }
+
+    if (remainingToDeduct > 0) {
+      const fromRef = Math.min(
+        user.referralRechargeBonusBalance,
+        remainingToDeduct,
+      );
+      user.referralRechargeBonusBalance -= fromRef;
+      user.balance -= fromRef;
+      remainingToDeduct -= fromRef;
+      deductions.referralBonus = fromRef;
+    }
+
+    if (remainingToDeduct > 0) {
+      const fromSelf = Math.min(
+        user.selfRechargeBonusBalance,
+        remainingToDeduct,
+      );
+      user.selfRechargeBonusBalance -= fromSelf;
+      user.balance -= fromSelf;
+      remainingToDeduct -= fromSelf;
+      deductions.selfBonus = fromSelf;
+    }
+
+    if (remainingToDeduct > 0) {
+      const fromBalance = Math.min(user.balance, remainingToDeduct);
+      user.balance -= fromBalance;
+      remainingToDeduct -= fromBalance;
+      deductions.balance = fromBalance;
+    }
+
     await user.save();
 
     const transaction = await WalletTransaction.create({
@@ -220,6 +245,7 @@ exports.withdrawRequest = async (req, res) => {
       accountNumber,
       type: "withdraw",
       status: "pending",
+      deductions,
     });
     await Notification.create({
       title: "New Withdraw Request",
@@ -279,9 +305,15 @@ exports.rejectWithdraw = async (req, res) => {
       return res.status(400).json({ message: "Transaction already processed" });
     }
 
-    // Add amount back to user balance
+    // Add amount back to user balance categories
     if (transaction.user) {
+      const d = transaction.deductions || {};
       transaction.user.balance += transaction.amount;
+      transaction.user.profitBalance += d.profit || 0;
+      transaction.user.teamCommissionBalance += d.teamCommission || 0;
+      transaction.user.referralRechargeBonusBalance += d.referralBonus || 0;
+      transaction.user.selfRechargeBonusBalance += d.selfBonus || 0;
+
       await transaction.user.save();
     }
 
@@ -336,46 +368,21 @@ exports.getMyTransactions = async (req, res) => {
       },
     );
 
-    const user = await User.findById(userId).select("balance name email");
+    const user = await User.findById(userId).select(
+      "balance profitBalance teamCommissionBalance selfRechargeBonusBalance referralRechargeBonusBalance name email",
+    );
 
     const settings = await SystemSettings.findOne();
+    const earnedBalance =
+      (user.profitBalance || 0) +
+      (user.teamCommissionBalance || 0) +
+      (user.referralRechargeBonusBalance || 0) +
+      (user.selfRechargeBonusBalance || 0);
+
     let withdrawableBalance = user.balance;
 
     if (settings?.restrictWithdrawalToProfits) {
-      // Sum of all profits and bonuses received
-      const totalProfitsAndBonusesAgg = await WalletTransaction.aggregate([
-        {
-          $match: {
-            user: user._id,
-            status: "approved",
-            type: {
-              $in: ["profit", "deposit_bonus_self", "referral_bonus", "bonus"],
-            },
-            direction: "in",
-          },
-        },
-        { $group: { _id: null, total: { $sum: "$amount" } } },
-      ]);
-      const totalProfitsAndBonuses = totalProfitsAndBonusesAgg[0]?.total || 0;
-
-      // Sum of all withdrawals (pending or approved)
-      const totalWithdrawnAgg = await WalletTransaction.aggregate([
-        {
-          $match: {
-            user: user._id,
-            status: { $in: ["pending", "approved"] },
-            type: "withdraw",
-          },
-        },
-        { $group: { _id: null, total: { $sum: "$amount" } } },
-      ]);
-      const totalWithdrawn = totalWithdrawnAgg[0]?.total || 0;
-
-      withdrawableBalance = Math.max(
-        0,
-        totalProfitsAndBonuses - totalWithdrawn,
-      );
-      withdrawableBalance = Math.min(withdrawableBalance, user.balance);
+      withdrawableBalance = Math.min(earnedBalance, user.balance);
     }
 
     res.json({

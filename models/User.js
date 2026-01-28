@@ -22,6 +22,12 @@ const userSchema = new mongoose.Schema(
     role: { type: String, enum: ["user", "admin"], default: "user" },
     profileImage: { type: String, default: null },
     balance: { type: Number, default: 0 },
+    // 💰 Categorized Balances
+    profitBalance: { type: Number, default: 0 },
+    selfRechargeBonusBalance: { type: Number, default: 0 },
+    teamCommissionBalance: { type: Number, default: 0 },
+    referralRechargeBonusBalance: { type: Number, default: 0 },
+
     // 🏪 Store Info
     storeName: { type: String, default: "" },
     phone: { type: String, default: "" },

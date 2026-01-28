@@ -60,44 +60,16 @@ exports.getBasicStats = async (req, res) => {
     ]);
     const inTransaction = userInTransactionAgg[0]?.total || 0;
 
-    // Calculate Withdrawable Balance if restricted
+    // Calculate Withdrawable Balance
+    const earnedBalance =
+      (user.profitBalance || 0) +
+      (user.teamCommissionBalance || 0) +
+      (user.referralRechargeBonusBalance || 0) +
+      (user.selfRechargeBonusBalance || 0);
+
     let withdrawableBalance = availableBalance;
     if (settings?.restrictWithdrawalToProfits) {
-      // Sum of all profits and bonuses received
-      const totalProfitsAndBonusesAgg = await WalletTransaction.aggregate([
-        {
-          $match: {
-            user: user._id,
-            status: "approved",
-            type: {
-              $in: ["profit", "deposit_bonus_self", "referral_bonus", "bonus"],
-            },
-            direction: "in",
-          },
-        },
-        { $group: { _id: null, total: { $sum: "$amount" } } },
-      ]);
-      const totalProfitsAndBonuses = totalProfitsAndBonusesAgg[0]?.total || 0;
-
-      // Sum of all withdrawals (pending or approved)
-      const totalWithdrawnAgg = await WalletTransaction.aggregate([
-        {
-          $match: {
-            user: user._id,
-            status: { $in: ["pending", "approved"] },
-            type: "withdraw",
-          },
-        },
-        { $group: { _id: null, total: { $sum: "$amount" } } },
-      ]);
-      const totalWithdrawn = totalWithdrawnAgg[0]?.total || 0;
-
-      withdrawableBalance = Math.max(
-        0,
-        totalProfitsAndBonuses - totalWithdrawn,
-      );
-      // It should not exceed current balance
-      withdrawableBalance = Math.min(withdrawableBalance, availableBalance);
+      withdrawableBalance = Math.min(earnedBalance, availableBalance);
     }
 
     // User's total profit (sum of all claimed profits * profitPercent)
@@ -158,6 +130,10 @@ exports.getBasicStats = async (req, res) => {
         accountLevel: user.accountLevel,
         role: user.role,
         balance: user.balance,
+        profitBalance: user.profitBalance,
+        selfRechargeBonusBalance: user.selfRechargeBonusBalance,
+        teamCommissionBalance: user.teamCommissionBalance,
+        referralRechargeBonusBalance: user.referralRechargeBonusBalance,
       },
       totalSales: userTotalSales,
       currentMonthSales: userCurrentMonthSales,

@@ -27,8 +27,70 @@ exports.buyProduct = async (req, res) => {
       return res.status(400).json({ message: "Insufficient balance" });
     }
 
-    // 4. Deduct balance
-    user.balance -= product.price;
+    // 4. Deduct balance with sub-balance support
+    let remainingToDeduct = product.price;
+    const deductions = {
+      balance: 0,
+      profit: 0,
+      teamCommission: 0,
+      referralBonus: 0,
+      selfBonus: 0,
+    };
+
+    // Deduct from Recharge Balance (Principal) first
+    const fromRecharge = Math.min(
+      user.balance -
+        (user.profitBalance +
+          user.teamCommissionBalance +
+          user.referralRechargeBonusBalance +
+          user.selfRechargeBonusBalance),
+      remainingToDeduct,
+    );
+    if (fromRecharge > 0) {
+      deductions.balance = fromRecharge;
+      user.balance -= fromRecharge;
+      remainingToDeduct -= fromRecharge;
+    }
+
+    // If still need to deduct, go through earned balances
+    if (remainingToDeduct > 0) {
+      const fromProfit = Math.min(user.profitBalance, remainingToDeduct);
+      user.profitBalance -= fromProfit;
+      user.balance -= fromProfit;
+      remainingToDeduct -= fromProfit;
+      deductions.profit = fromProfit;
+    }
+
+    if (remainingToDeduct > 0) {
+      const fromTeam = Math.min(user.teamCommissionBalance, remainingToDeduct);
+      user.teamCommissionBalance -= fromTeam;
+      user.balance -= fromTeam;
+      remainingToDeduct -= fromTeam;
+      deductions.teamCommission = fromTeam;
+    }
+
+    if (remainingToDeduct > 0) {
+      const fromRef = Math.min(
+        user.referralRechargeBonusBalance,
+        remainingToDeduct,
+      );
+      user.referralRechargeBonusBalance -= fromRef;
+      user.balance -= fromRef;
+      remainingToDeduct -= fromRef;
+      deductions.referralBonus = fromRef;
+    }
+
+    if (remainingToDeduct > 0) {
+      const fromSelf = Math.min(
+        user.selfRechargeBonusBalance,
+        remainingToDeduct,
+      );
+      user.selfRechargeBonusBalance -= fromSelf;
+      user.balance -= fromSelf;
+      remainingToDeduct -= fromSelf;
+      deductions.selfBonus = fromSelf;
+    }
+
     await user.save();
 
     // 5. Record purchase
@@ -53,6 +115,7 @@ exports.buyProduct = async (req, res) => {
       purchase: purchase._id,
       method: "Escrow",
       direction: "out",
+      deductions,
     });
 
     res.status(201).json({
@@ -146,6 +209,8 @@ exports.claimProfit = async (req, res) => {
     // Add profit to user's wallet
     const user = await User.findById(userId);
     user.balance = Math.round((user.balance + profitAmount) * 100) / 100;
+    user.profitBalance =
+      Math.round((user.profitBalance + profitAmount) * 100) / 100;
     await user.save();
 
     // Create a transaction record for the profit
