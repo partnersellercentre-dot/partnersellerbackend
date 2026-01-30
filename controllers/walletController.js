@@ -332,41 +332,56 @@ exports.rejectWithdraw = async (req, res) => {
 exports.getMyTransactions = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
+    const { tab = "account", page = 1, limit = 10 } = req.query;
+    const p = parseInt(page);
+    const l = parseInt(limit);
+    const skip = (p - 1) * l;
 
-    const walletTransactions = await WalletTransaction.find({
-      user: userId,
-    }).lean();
+    let walletFilter = { user: userId };
+    if (tab === "deposit") {
+      walletFilter.type = "deposit";
+    } else if (tab === "withdrawal") {
+      walletFilter.type = "withdraw";
+    } else if (tab === "account") {
+      // Exclude deposits from account details as they have their own tab
+      walletFilter.type = { $ne: "deposit" };
+      walletFilter.status = "approved";
+    }
 
-    const automatedDeposits = await Deposit.find({
-      user: userId,
-    }).lean();
+    // Fetch WalletTransactions
+    const walletTransactions =
+      await WalletTransaction.find(walletFilter).lean();
 
-    // Map automated deposits to match WalletTransaction structure
-    const mappedDeposits = automatedDeposits.map((d) => ({
-      _id: d._id,
-      amount: d.receivedAmount || d.expectedAmount || 0,
-      type: "deposit",
-      method: d.system ? `${d.system} (${d.currency || ""})` : "Automated",
-      status:
-        d.status === "credited"
-          ? "approved"
-          : d.status === "failed"
-            ? "rejected"
-            : "pending",
-      createdAt: d.createdAt || new Date(),
-      isAutomated: true,
-      orderId: d.orderId,
-      txid: d.txid,
-    }));
+    let mappedDeposits = [];
+    if (tab === "deposit") {
+      const automatedDeposits = await Deposit.find({ user: userId }).lean();
+      mappedDeposits = automatedDeposits.map((d) => ({
+        _id: d._id,
+        amount: d.receivedAmount || d.expectedAmount || 0,
+        type: "deposit",
+        method: d.system ? `${d.system} (${d.currency || ""})` : "Automated",
+        status:
+          d.status === "credited"
+            ? "approved"
+            : d.status === "failed"
+              ? "rejected"
+              : "pending",
+        createdAt: d.createdAt || new Date(),
+        isAutomated: true,
+        orderId: d.orderId,
+        txid: d.txid,
+      }));
+    }
 
     // Merge and sort
-    const transactions = [...walletTransactions, ...mappedDeposits].sort(
-      (a, b) => {
-        const dateA = a.createdAt ? new Date(a.createdAt) : 0;
-        const dateB = b.createdAt ? new Date(b.createdAt) : 0;
-        return dateB - dateA;
-      },
-    );
+    let allRecords = [...walletTransactions, ...mappedDeposits].sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt) : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt) : 0;
+      return dateB - dateA;
+    });
+
+    const totalRecords = allRecords.length;
+    const paginatedRecords = allRecords.slice(skip, skip + l);
 
     const user = await User.findById(userId).select(
       "balance profitBalance teamCommissionBalance selfRechargeBonusBalance referralRechargeBonusBalance name email",
@@ -385,9 +400,22 @@ exports.getMyTransactions = async (req, res) => {
       withdrawableBalance = Math.min(earnedBalance, user.balance);
     }
 
+    // Calculate total escrow for the user (all records, not just paginated)
+    const escrowTxns = await WalletTransaction.find({
+      user: userId,
+      type: "escrow",
+      status: "pending",
+      direction: "out",
+    });
+    const totalEscrow = escrowTxns.reduce((sum, txn) => sum + txn.amount, 0);
+
     res.json({
       success: true,
-      transactions,
+      transactions: paginatedRecords,
+      totalRecords,
+      totalPages: Math.ceil(totalRecords / l),
+      currentPage: p,
+      totalEscrow,
       user,
       withdrawableBalance,
       isRestricted: settings?.restrictWithdrawalToProfits || false,

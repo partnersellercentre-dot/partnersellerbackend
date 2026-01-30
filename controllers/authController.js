@@ -71,9 +71,6 @@ const registerWithOtp = async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // ✅ store plain password for testing
-    user.plainPassword = password;
-
     const newReferralCode = Math.floor(
       1000000000 + Math.random() * 9000000000,
     ).toString();
@@ -125,7 +122,6 @@ const registerWithOtp = async (req, res) => {
         referralCode: user.referralCode,
         accountLevel: user.accountLevel,
         role: user.role,
-        plainPassword: user.plainPassword, // ✅ return it for testing
       },
     });
   } catch (err) {
@@ -200,7 +196,6 @@ const registerWithUsername = async (req, res) => {
       name: username,
       email,
       passwordHash,
-      plainPassword: password, // ✅ store plain password here
       isVerified: true,
       role: "user",
       referralCode,
@@ -240,7 +235,6 @@ const registerWithUsername = async (req, res) => {
         name: user.name,
         referralCode: user.referralCode,
         role: user.role,
-        plainPassword: user.plainPassword, // ✅ return it
       },
     });
   } catch (err) {
@@ -323,7 +317,6 @@ const resetPassword = async (req, res) => {
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
     user.passwordHash = passwordHash;
-    user.plainPassword = newPassword; // Keep it in sync if you're using it
     user.otp = null;
     user.otpExpires = null;
     await user.save();

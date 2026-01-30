@@ -43,8 +43,11 @@ const systemSettingsSchema = new mongoose.Schema(
 
     // Social Links
     socialLinks: {
-      whatsapp: { type: String, default: "https://wa.me/923166226704" },
-      telegram: { type: String, default: "https://t.me/+923166226704" },
+      whatsapp: {
+        type: String,
+        default: "https://whatsapp.com/channel/0029ValL7m9BvvsfXZRk0Q3K",
+      },
+      telegram: { type: String, default: "https://t.me/partnersellercentre" },
     },
     pkrRate: {
       type: Number,

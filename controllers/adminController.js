@@ -90,10 +90,7 @@ const getAdminProfile = async (req, res) => {
 // Get all users
 const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find(
-      { isDeleted: { $ne: true } },
-      "+plainPassword",
-    )
+    const users = await User.find({ isDeleted: { $ne: true } })
       .sort({ _id: -1 })
       .lean(); // ✅ lean ensures plain JS
     // Add KYC status to each user

@@ -70,8 +70,8 @@ router.get("/social-links", async (req, res) => {
     if (!settings) {
       settings = await SystemSettings.create({
         socialLinks: {
-          whatsapp: "https://wa.me/923166226704",
-          telegram: "https://t.me/+923166226704",
+          whatsapp: "https://whatsapp.com/channel/0029ValL7m9BvvsfXZRk0Q3K",
+          telegram: "https://t.me/partnersellercentre",
         },
       });
     }
