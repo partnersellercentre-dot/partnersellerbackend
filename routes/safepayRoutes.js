@@ -4,7 +4,7 @@ const { protect } = require("../middleware/authMiddleware");
 const {
   createTracker,
   handleWebhook,
-} = require("../controllers/safepayController");
+} = require("../controllers/wpayController");
 
 router.post("/create-tracker", protect, createTracker);
 router.post("/webhook", handleWebhook);
