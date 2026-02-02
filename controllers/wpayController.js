@@ -60,10 +60,15 @@ exports.createTracker = async (req, res) => {
     const rate = settings && settings.pkrRate ? settings.pkrRate : 280;
     const pkrAmount = Math.round(Number(amount) * rate);
 
-    const mchOrderNo = `WP${Date.now()}`; // Removed underscore just in case
+    const mchOrderNo = `WP${Date.now()}`;
 
     // Channel codes: JZ for JazzCash, EP for EasyPaisa
     const pay_type = method === "easypaisa" ? "EP" : "JZ";
+
+    const frontendUrl =
+      process.env.FRONTEND_URL || "https://www.partnersellercentre.shop";
+    const backendUrl =
+      process.env.BACKEND_URL || "https://api.partnersellercentre.shop";
 
     const params = {
       mchId: WPAY_MCH_ID.toString(),
@@ -71,8 +76,8 @@ exports.createTracker = async (req, res) => {
       money: Math.round(pkrAmount).toString(),
       currency: "PKR",
       pay_type: pay_type,
-      notify_url: `${process.env.BACKEND_URL}/api/safepay/webhook`,
-      returnUrl: `${process.env.FRONTEND_URL}/wallet`,
+      notify_url: `${backendUrl}/api/safepay/webhook`,
+      returnUrl: `${frontendUrl}/wallet`,
       attach: userId.toString(),
     };
 
