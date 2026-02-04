@@ -10,32 +10,33 @@ const {
 // ------------------ USER ------------------
 router.post("/deposit", protect, walletController.depositRequest);
 router.post("/withdraw", protect, walletController.withdrawRequest);
+router.post("/transfer", protect, walletController.transferFunds);
 
 // ------------------ ADMIN ------------------
 router.post(
   "/deposit/approve",
   adminProtect,
   admin,
-  walletController.approveDeposit
+  walletController.approveDeposit,
 );
 router.post(
   "/deposit/reject",
   adminProtect,
   admin,
-  walletController.rejectDeposit
+  walletController.rejectDeposit,
 );
 
 router.post(
   "/withdraw/approve",
   adminProtect,
   admin,
-  walletController.approveWithdraw
+  walletController.approveWithdraw,
 );
 router.post(
   "/withdraw/reject",
   adminProtect,
   admin,
-  walletController.rejectWithdraw
+  walletController.rejectWithdraw,
 );
 
 router.get("/my-transactions", protect, walletController.getMyTransactions);
@@ -43,13 +44,13 @@ router.get(
   "/transactions",
   adminProtect,
   admin,
-  walletController.getAllTransactions
+  walletController.getAllTransactions,
 );
 
 router.post(
   "/release-buyer-escrow",
   protect,
-  walletController.releaseBuyerEscrow
+  walletController.releaseBuyerEscrow,
 );
 
 module.exports = router;

@@ -329,6 +329,87 @@ exports.rejectWithdraw = async (req, res) => {
   }
 };
 
+exports.transferFunds = async (req, res) => {
+  try {
+    const { amount, direction } = req.body;
+    const userId = req.user.id;
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ message: "Invalid amount" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (direction === "BtoA") {
+      // Transfer from Withdrawal (Earned) to Available (Recharge)
+      const earnedBalance =
+        (user.profitBalance || 0) +
+        (user.teamCommissionBalance || 0) +
+        (user.referralRechargeBonusBalance || 0) +
+        (user.selfRechargeBonusBalance || 0);
+
+      if (earnedBalance < amount) {
+        return res.status(400).json({ message: "Insufficient earned balance" });
+      }
+
+      // Deduct from earned balances
+      let remaining = amount;
+
+      const fromProfit = Math.min(user.profitBalance, remaining);
+      user.profitBalance -= fromProfit;
+      remaining -= fromProfit;
+
+      if (remaining > 0) {
+        const fromTeam = Math.min(user.teamCommissionBalance, remaining);
+        user.teamCommissionBalance -= fromTeam;
+        remaining -= fromTeam;
+      }
+
+      if (remaining > 0) {
+        const fromRef = Math.min(user.referralRechargeBonusBalance, remaining);
+        user.referralRechargeBonusBalance -= fromRef;
+        remaining -= fromRef;
+      }
+
+      if (remaining > 0) {
+        const fromSelf = Math.min(user.selfRechargeBonusBalance, remaining);
+        user.selfRechargeBonusBalance -= fromSelf;
+        remaining -= fromSelf;
+      }
+
+      await user.save();
+
+      // Create transaction record
+      await WalletTransaction.create({
+        user: userId,
+        amount: amount,
+        type: "transfer",
+        status: "approved",
+        direction: "in",
+        method: "Earnings to Wallet",
+        description: "Transferred from earnings to available balance",
+      });
+
+      return res.json({
+        success: true,
+        message: "Funds transferred successfully",
+      });
+    } else if (direction === "AtoB") {
+      return res.status(400).json({
+        message:
+          "To ensure swapping must completed 60x turnover of recharge volume. Once the criteria are met, funds may be moved to Earn-Wallet for withdrawal.",
+      });
+    } else {
+      return res.status(400).json({ message: "Invalid direction" });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 exports.getMyTransactions = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
