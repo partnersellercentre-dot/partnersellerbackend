@@ -122,7 +122,8 @@ exports.getBasicStats = async (req, res) => {
     res.json({
       user: {
         id: user._id,
-        name: user.name,
+        username: user.name,
+        storeName: user.storeName,
         email: user.email,
         referralCode: user.referralCode,
         accountLevel: user.accountLevel,

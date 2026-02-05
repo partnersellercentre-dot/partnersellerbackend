@@ -489,7 +489,7 @@ exports.getMyTransactions = async (req, res) => {
     const paginatedRecords = allRecords.slice(skip, skip + l);
 
     const user = await User.findById(userId).select(
-      "balance balances name email",
+      "balance balances name email storeName",
     );
 
     const settings = await SystemSettings.findOne();
@@ -518,7 +518,10 @@ exports.getMyTransactions = async (req, res) => {
       totalPages: Math.ceil(totalRecords / l),
       currentPage: p,
       totalEscrow,
-      user,
+      user: {
+        ...user.toObject(),
+        username: user.name,
+      },
       withdrawableBalance,
       isRestricted: settings?.restrictWithdrawalToProfits || false,
     });
