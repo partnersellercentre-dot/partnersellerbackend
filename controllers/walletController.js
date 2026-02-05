@@ -413,7 +413,7 @@ exports.transferFunds = async (req, res) => {
         type: "transfer",
         status: "approved",
         direction: "in",
-        method: "Earnings to Wallet",
+        method: "Transfer",
         description: "Transferred from earnings to available balance",
       });
 

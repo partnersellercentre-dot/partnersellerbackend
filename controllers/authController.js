@@ -33,6 +33,8 @@ const sendOtpHandler = async (req, res) => {
         otpExpires,
         isVerified: false,
         name: email.split("@")[0],
+        username:
+          email.split("@")[0] + "_" + Math.floor(1000 + Math.random() * 9000),
         role: "user", // Ensuring role is "user"
       });
     } else {
@@ -57,12 +59,24 @@ const sendOtpHandler = async (req, res) => {
 
 const registerWithOtp = async (req, res) => {
   try {
-    const { email, otp, password, referralCode } = req.body;
+    const { email, otp, password, referralCode, name, username } = req.body;
     if (!email || !otp || !password)
       return res.status(400).json({ error: "All fields are required" });
 
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ error: "User not found" });
+
+    if (username) {
+      const existingUsername = await User.findOne({
+        username,
+        _id: { $ne: user._id },
+      });
+      if (existingUsername)
+        return res.status(400).json({ error: "Username already taken" });
+      user.username = username;
+    }
+    if (name) user.name = name;
+
     if (user.isVerified)
       return res.status(400).json({ error: "User already verified" });
     if (user.otp !== otp) return res.status(400).json({ error: "Invalid OTP" });
@@ -119,6 +133,7 @@ const registerWithOtp = async (req, res) => {
       user: {
         id: user._id,
         name: user.name,
+        username: user.username,
         email: user.email,
         referralCode: user.referralCode,
         accountLevel: user.accountLevel,
@@ -155,6 +170,7 @@ const loginWithOtp = async (req, res) => {
       user: {
         id: user._id,
         name: user.name,
+        username: user.username,
         email: user.email,
         referralCode: user.referralCode,
         accountLevel: user.accountLevel,
@@ -169,13 +185,13 @@ const loginWithOtp = async (req, res) => {
 
 const registerWithUsername = async (req, res) => {
   try {
-    const { username, password, invitationCode, email } = req.body;
+    const { username, name, password, invitationCode, email } = req.body;
     if (!username || !password || !email)
       return res
         .status(400)
         .json({ error: "Username, password, and email are required" });
 
-    const existingUsername = await User.findOne({ name: username });
+    const existingUsername = await User.findOne({ username });
     if (existingUsername)
       return res.status(400).json({ error: "Username already taken" });
 
@@ -194,7 +210,8 @@ const registerWithUsername = async (req, res) => {
     }
 
     const user = await User.create({
-      name: username,
+      username,
+      name: name || username,
       email,
       passwordHash,
       isVerified: true,
@@ -235,6 +252,7 @@ const registerWithUsername = async (req, res) => {
       user: {
         id: user._id,
         name: user.name,
+        username: user.username,
         referralCode: user.referralCode,
         role: user.role,
       },
@@ -252,7 +270,7 @@ const loginWithUsername = async (req, res) => {
     if (!username || !password)
       return res.status(400).json({ error: "Username and password required" });
 
-    const user = await User.findOne({ name: username });
+    const user = await User.findOne({ username });
     if (!user) return res.status(404).json({ error: "User not found" });
 
     const valid = await bcrypt.compare(password, user.passwordHash);
@@ -264,6 +282,7 @@ const loginWithUsername = async (req, res) => {
       user: {
         id: user._id,
         name: user.name,
+        username: user.username,
         referralCode: user.referralCode,
         role: user.role, // Return role in the response
       },
@@ -281,7 +300,7 @@ const forgotPassword = async (req, res) => {
     if (!username || !email)
       return res.status(400).json({ error: "Username and Email are required" });
 
-    const user = await User.findOne({ name: username, email });
+    const user = await User.findOne({ username, email });
     if (!user)
       return res.status(404).json({
         error: "No user found with this username and email combination",
@@ -310,7 +329,7 @@ const resetPassword = async (req, res) => {
     if (!username || !otp || !newPassword)
       return res.status(400).json({ error: "All fields are required" });
 
-    const user = await User.findOne({ name: username });
+    const user = await User.findOne({ username });
     if (!user) return res.status(404).json({ error: "User not found" });
 
     if (user.otp !== otp) return res.status(400).json({ error: "Invalid OTP" });
@@ -351,10 +370,21 @@ const updateProfile = async (req, res) => {
   try {
     const userId = req.user._id;
     console.log("Update Body:", req.body);
-    const { name, email } = req.body;
+    const { name, username, email } = req.body;
 
     let updateData = {};
     if (name) updateData.name = name;
+
+    if (username && username.trim() !== "") {
+      const existingUsername = await User.findOne({
+        username: username.trim(),
+        _id: { $ne: userId },
+      });
+      if (existingUsername) {
+        return res.status(400).json({ error: "Username is already in use" });
+      }
+      updateData.username = username.trim();
+    }
 
     if (email && email.trim() !== "") {
       console.log("Updating email to:", email);
