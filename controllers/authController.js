@@ -32,9 +32,9 @@ const sendOtpHandler = async (req, res) => {
         otp,
         otpExpires,
         isVerified: false,
-        name: email.split("@")[0],
-        username:
-          email.split("@")[0] + "_" + Math.floor(1000 + Math.random() * 9000),
+        name:
+          email.split("@")[0].replace(/[^a-zA-Z0-9]/g, "") +
+          Math.floor(1000 + Math.random() * 9000),
         role: "user", // Ensuring role is "user"
       });
     } else {
@@ -59,7 +59,8 @@ const sendOtpHandler = async (req, res) => {
 
 const registerWithOtp = async (req, res) => {
   try {
-    const { email, otp, password, referralCode, name, username } = req.body;
+    const { email, otp, password, referralCode, storeName, username } =
+      req.body;
     if (!email || !otp || !password)
       return res.status(400).json({ error: "All fields are required" });
 
@@ -68,14 +69,14 @@ const registerWithOtp = async (req, res) => {
 
     if (username) {
       const existingUsername = await User.findOne({
-        username,
+        name: username,
         _id: { $ne: user._id },
       });
       if (existingUsername)
         return res.status(400).json({ error: "Username already taken" });
-      user.username = username;
+      user.name = username;
     }
-    if (name) user.name = name;
+    if (storeName) user.storeName = storeName;
 
     if (user.isVerified)
       return res.status(400).json({ error: "User already verified" });
@@ -132,8 +133,8 @@ const registerWithOtp = async (req, res) => {
       token: generateToken(user._id),
       user: {
         id: user._id,
-        name: user.name,
-        username: user.username,
+        username: user.name,
+        storeName: user.storeName,
         email: user.email,
         referralCode: user.referralCode,
         accountLevel: user.accountLevel,
@@ -169,8 +170,8 @@ const loginWithOtp = async (req, res) => {
       token: generateToken(user._id),
       user: {
         id: user._id,
-        name: user.name,
-        username: user.username,
+        username: user.name,
+        storeName: user.storeName,
         email: user.email,
         referralCode: user.referralCode,
         accountLevel: user.accountLevel,
@@ -185,13 +186,13 @@ const loginWithOtp = async (req, res) => {
 
 const registerWithUsername = async (req, res) => {
   try {
-    const { username, name, password, invitationCode, email } = req.body;
+    const { username, storeName, password, invitationCode, email } = req.body;
     if (!username || !password || !email)
       return res
         .status(400)
         .json({ error: "Username, password, and email are required" });
 
-    const existingUsername = await User.findOne({ username });
+    const existingUsername = await User.findOne({ name: username });
     if (existingUsername)
       return res.status(400).json({ error: "Username already taken" });
 
@@ -210,8 +211,8 @@ const registerWithUsername = async (req, res) => {
     }
 
     const user = await User.create({
-      username,
-      name: name || username,
+      name: username,
+      storeName: storeName || username,
       email,
       passwordHash,
       isVerified: true,
@@ -251,8 +252,8 @@ const registerWithUsername = async (req, res) => {
       token: generateToken(user._id),
       user: {
         id: user._id,
-        name: user.name,
-        username: user.username,
+        username: user.name,
+        storeName: user.storeName,
         referralCode: user.referralCode,
         role: user.role,
       },
@@ -270,7 +271,7 @@ const loginWithUsername = async (req, res) => {
     if (!username || !password)
       return res.status(400).json({ error: "Username and password required" });
 
-    const user = await User.findOne({ username });
+    const user = await User.findOne({ name: username });
     if (!user) return res.status(404).json({ error: "User not found" });
 
     const valid = await bcrypt.compare(password, user.passwordHash);
@@ -281,8 +282,8 @@ const loginWithUsername = async (req, res) => {
       token: generateToken(user._id),
       user: {
         id: user._id,
-        name: user.name,
-        username: user.username,
+        username: user.name,
+        storeName: user.storeName,
         referralCode: user.referralCode,
         role: user.role, // Return role in the response
       },
@@ -300,7 +301,7 @@ const forgotPassword = async (req, res) => {
     if (!username || !email)
       return res.status(400).json({ error: "Username and Email are required" });
 
-    const user = await User.findOne({ username, email });
+    const user = await User.findOne({ name: username, email });
     if (!user)
       return res.status(404).json({
         error: "No user found with this username and email combination",
@@ -329,7 +330,7 @@ const resetPassword = async (req, res) => {
     if (!username || !otp || !newPassword)
       return res.status(400).json({ error: "All fields are required" });
 
-    const user = await User.findOne({ username });
+    const user = await User.findOne({ name: username });
     if (!user) return res.status(404).json({ error: "User not found" });
 
     if (user.otp !== otp) return res.status(400).json({ error: "Invalid OTP" });
@@ -352,14 +353,19 @@ const resetPassword = async (req, res) => {
 // Get user profile
 const getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select("-password"); // exclude password
+    const user = await User.findById(req.user.id).select("-passwordHash"); // exclude password
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
     // Check KYC status
     const kyc = await KYC.findOne({ user: req.user.id });
     const isKycApproved = kyc && kyc.status === "approved";
-    res.json({ ...user.toObject(), isKycApproved });
+
+    res.json({
+      ...user.toObject(),
+      username: user.name,
+      isKycApproved,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -370,20 +376,20 @@ const updateProfile = async (req, res) => {
   try {
     const userId = req.user._id;
     console.log("Update Body:", req.body);
-    const { name, username, email } = req.body;
+    const { storeName, username, email } = req.body;
 
     let updateData = {};
-    if (name) updateData.name = name;
+    if (storeName) updateData.storeName = storeName;
 
     if (username && username.trim() !== "") {
       const existingUsername = await User.findOne({
-        username: username.trim(),
+        name: username.trim(),
         _id: { $ne: userId },
       });
       if (existingUsername) {
         return res.status(400).json({ error: "Username is already in use" });
       }
-      updateData.username = username.trim();
+      updateData.name = username.trim();
     }
 
     if (email && email.trim() !== "") {
@@ -432,7 +438,10 @@ const updateProfile = async (req, res) => {
 
     res.json({
       message: "Profile updated successfully",
-      user,
+      user: {
+        ...user.toObject(),
+        username: user.name,
+      },
     });
   } catch (err) {
     console.error("Update profile error:", err.message);
