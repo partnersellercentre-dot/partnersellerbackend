@@ -173,7 +173,7 @@ exports.withdrawRequest = async (req, res) => {
     if (maxWithdrawable < amount) {
       return res.status(400).json({
         message:
-          "Insufficient withdrawal balance. You can only withdraw from profits and bonuses.",
+          "Insufficient withdrawal balance. You can only withdraw from withdrawable balance",
       });
     }
 
