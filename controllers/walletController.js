@@ -60,6 +60,8 @@ exports.approveDeposit = async (req, res) => {
 
     // Add balance to user
     transaction.user.balance += transaction.amount;
+    transaction.user.balances.recharge =
+      (transaction.user.balances.recharge || 0) + transaction.amount;
     await transaction.user.save();
 
     // Trigger Deposit Bonus (Self + Referral First Time)
@@ -122,6 +124,8 @@ exports.releaseBuyerEscrow = async (req, res) => {
     // Add balance to user
     const user = await User.findById(txn.user._id);
     user.balance = Math.round((user.balance + txn.amount) * 100) / 100;
+    user.balances.recharge =
+      Math.round(((user.balances.recharge || 0) + txn.amount) * 100) / 100;
     await user.save();
 
     // Create a new transaction record for the release/transfer in
@@ -157,10 +161,11 @@ exports.withdrawRequest = async (req, res) => {
     }
 
     const earnedBalance =
-      (user.profitBalance || 0) +
-      (user.teamCommissionBalance || 0) +
-      (user.referralRechargeBonusBalance || 0) +
-      (user.selfRechargeBonusBalance || 0);
+      (user.balances.profit || 0) +
+      (user.balances.teamCommission || 0) +
+      (user.balances.referralBonus || 0) +
+      (user.balances.selfBonus || 0) +
+      (user.balances.signupBonus || 0);
 
     const settings = await SystemSettings.findOne();
     let maxWithdrawable = user.balance;
@@ -188,49 +193,56 @@ exports.withdrawRequest = async (req, res) => {
       teamCommission: 0,
       referralBonus: 0,
       selfBonus: 0,
+      signupBonus: 0,
     };
 
-    const fromProfit = Math.min(user.profitBalance, remainingToDeduct);
-    user.profitBalance -= fromProfit;
+    const fromProfit = Math.min(user.balances.profit, remainingToDeduct);
+    user.balances.profit -= fromProfit;
     user.balance -= fromProfit;
     remainingToDeduct -= fromProfit;
     deductions.profit = fromProfit;
 
     if (remainingToDeduct > 0) {
-      const fromTeam = Math.min(user.teamCommissionBalance, remainingToDeduct);
-      user.teamCommissionBalance -= fromTeam;
+      const fromTeam = Math.min(
+        user.balances.teamCommission,
+        remainingToDeduct,
+      );
+      user.balances.teamCommission -= fromTeam;
       user.balance -= fromTeam;
       remainingToDeduct -= fromTeam;
       deductions.teamCommission = fromTeam;
     }
 
     if (remainingToDeduct > 0) {
-      const fromRef = Math.min(
-        user.referralRechargeBonusBalance,
-        remainingToDeduct,
-      );
-      user.referralRechargeBonusBalance -= fromRef;
+      const fromRef = Math.min(user.balances.referralBonus, remainingToDeduct);
+      user.balances.referralBonus -= fromRef;
       user.balance -= fromRef;
       remainingToDeduct -= fromRef;
       deductions.referralBonus = fromRef;
     }
 
     if (remainingToDeduct > 0) {
-      const fromSelf = Math.min(
-        user.selfRechargeBonusBalance,
-        remainingToDeduct,
-      );
-      user.selfRechargeBonusBalance -= fromSelf;
+      const fromSelf = Math.min(user.balances.selfBonus, remainingToDeduct);
+      user.balances.selfBonus -= fromSelf;
       user.balance -= fromSelf;
       remainingToDeduct -= fromSelf;
       deductions.selfBonus = fromSelf;
     }
 
     if (remainingToDeduct > 0) {
-      const fromBalance = Math.min(user.balance, remainingToDeduct);
-      user.balance -= fromBalance;
-      remainingToDeduct -= fromBalance;
-      deductions.balance = fromBalance;
+      const fromSignup = Math.min(user.balances.signupBonus, remainingToDeduct);
+      user.balances.signupBonus -= fromSignup;
+      user.balance -= fromSignup;
+      remainingToDeduct -= fromSignup;
+      deductions.signupBonus = fromSignup;
+    }
+
+    if (remainingToDeduct > 0) {
+      const fromRecharge = Math.min(user.balances.recharge, remainingToDeduct);
+      user.balances.recharge -= fromRecharge;
+      user.balance -= fromRecharge;
+      remainingToDeduct -= fromRecharge;
+      deductions.balance = fromRecharge;
     }
 
     await user.save();
@@ -309,10 +321,12 @@ exports.rejectWithdraw = async (req, res) => {
     if (transaction.user) {
       const d = transaction.deductions || {};
       transaction.user.balance += transaction.amount;
-      transaction.user.profitBalance += d.profit || 0;
-      transaction.user.teamCommissionBalance += d.teamCommission || 0;
-      transaction.user.referralRechargeBonusBalance += d.referralBonus || 0;
-      transaction.user.selfRechargeBonusBalance += d.selfBonus || 0;
+      transaction.user.balances.recharge += d.balance || 0;
+      transaction.user.balances.profit += d.profit || 0;
+      transaction.user.balances.teamCommission += d.teamCommission || 0;
+      transaction.user.balances.referralBonus += d.referralBonus || 0;
+      transaction.user.balances.selfBonus += d.selfBonus || 0;
+      transaction.user.balances.signupBonus += d.signupBonus || 0;
 
       await transaction.user.save();
     }
@@ -346,10 +360,11 @@ exports.transferFunds = async (req, res) => {
     if (direction === "BtoA") {
       // Transfer from Withdrawal (Earned) to Available (Recharge)
       const earnedBalance =
-        (user.profitBalance || 0) +
-        (user.teamCommissionBalance || 0) +
-        (user.referralRechargeBonusBalance || 0) +
-        (user.selfRechargeBonusBalance || 0);
+        (user.balances.profit || 0) +
+        (user.balances.teamCommission || 0) +
+        (user.balances.referralBonus || 0) +
+        (user.balances.selfBonus || 0) +
+        (user.balances.signupBonus || 0);
 
       if (earnedBalance < amount) {
         return res.status(400).json({ message: "Insufficient earned balance" });
@@ -358,27 +373,36 @@ exports.transferFunds = async (req, res) => {
       // Deduct from earned balances
       let remaining = amount;
 
-      const fromProfit = Math.min(user.profitBalance, remaining);
-      user.profitBalance -= fromProfit;
+      const fromProfit = Math.min(user.balances.profit, remaining);
+      user.balances.profit -= fromProfit;
       remaining -= fromProfit;
 
       if (remaining > 0) {
-        const fromTeam = Math.min(user.teamCommissionBalance, remaining);
-        user.teamCommissionBalance -= fromTeam;
+        const fromTeam = Math.min(user.balances.teamCommission, remaining);
+        user.balances.teamCommission -= fromTeam;
         remaining -= fromTeam;
       }
 
       if (remaining > 0) {
-        const fromRef = Math.min(user.referralRechargeBonusBalance, remaining);
-        user.referralRechargeBonusBalance -= fromRef;
+        const fromRef = Math.min(user.balances.referralBonus, remaining);
+        user.balances.referralBonus -= fromRef;
         remaining -= fromRef;
       }
 
       if (remaining > 0) {
-        const fromSelf = Math.min(user.selfRechargeBonusBalance, remaining);
-        user.selfRechargeBonusBalance -= fromSelf;
+        const fromSelf = Math.min(user.balances.selfBonus, remaining);
+        user.balances.selfBonus -= fromSelf;
         remaining -= fromSelf;
       }
+
+      if (remaining > 0) {
+        const fromSignup = Math.min(user.balances.signupBonus, remaining);
+        user.balances.signupBonus -= fromSignup;
+        remaining -= fromSignup;
+      }
+
+      // Add to recharge (available)
+      user.balances.recharge += amount;
 
       await user.save();
 
@@ -465,21 +489,18 @@ exports.getMyTransactions = async (req, res) => {
     const paginatedRecords = allRecords.slice(skip, skip + l);
 
     const user = await User.findById(userId).select(
-      "balance profitBalance teamCommissionBalance selfRechargeBonusBalance referralRechargeBonusBalance name email",
+      "balance balances name email",
     );
 
     const settings = await SystemSettings.findOne();
     const earnedBalance =
-      (user.profitBalance || 0) +
-      (user.teamCommissionBalance || 0) +
-      (user.referralRechargeBonusBalance || 0) +
-      (user.selfRechargeBonusBalance || 0);
+      (user.balances.profit || 0) +
+      (user.balances.teamCommission || 0) +
+      (user.balances.referralBonus || 0) +
+      (user.balances.selfBonus || 0) +
+      (user.balances.signupBonus || 0);
 
-    let withdrawableBalance = user.balance;
-
-    if (settings?.restrictWithdrawalToProfits) {
-      withdrawableBalance = Math.min(earnedBalance, user.balance);
-    }
+    let withdrawableBalance = earnedBalance;
 
     // Calculate total escrow for the user (all records, not just paginated)
     const escrowTxns = await WalletTransaction.find({

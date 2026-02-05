@@ -76,6 +76,7 @@ const walletTransactionSchema = new mongoose.Schema(
       selfBonus: { type: Number, default: 0 },
       teamCommission: { type: Number, default: 0 },
       referralBonus: { type: Number, default: 0 },
+      signupBonus: { type: Number, default: 0 },
     },
   },
   { timestamps: true },

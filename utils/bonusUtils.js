@@ -27,8 +27,7 @@ const processDepositBonus = async (userId, amount) => {
       const selfBonus = selfRange.bonus; // Exact amount now
       if (selfBonus > 0) {
         user.balance = (user.balance || 0) + selfBonus;
-        user.selfRechargeBonusBalance =
-          (user.selfRechargeBonusBalance || 0) + selfBonus;
+        user.balances.selfBonus = (user.balances.selfBonus || 0) + selfBonus;
         await user.save();
 
         await WalletTransaction.create({
@@ -69,8 +68,8 @@ const processDepositBonus = async (userId, amount) => {
             const refBonus = referralRange.bonus; // Exact amount (user requested "ranges")
             if (refBonus > 0) {
               referrer.balance = (referrer.balance || 0) + refBonus;
-              referrer.referralRechargeBonusBalance =
-                (referrer.referralRechargeBonusBalance || 0) + refBonus;
+              referrer.balances.referralBonus =
+                (referrer.balances.referralBonus || 0) + refBonus;
               await referrer.save();
 
               await WalletTransaction.create({
@@ -140,8 +139,8 @@ const processReferralBonus = async (userId, amount, type) => {
         if (bonusAmount > 0) {
           // Apply bonus
           referrer.balance = (referrer.balance || 0) + bonusAmount;
-          referrer.teamCommissionBalance =
-            (referrer.teamCommissionBalance || 0) + bonusAmount;
+          referrer.balances.teamCommission =
+            (referrer.balances.teamCommission || 0) + bonusAmount;
           await referrer.save();
 
           // Record transaction

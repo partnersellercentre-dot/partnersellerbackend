@@ -93,7 +93,8 @@ const registerWithOtp = async (req, res) => {
 
     if (signupBonus > 0) {
       user.balance = (user.balance || 0) + signupBonus;
-      user.profitBalance = (user.profitBalance || 0) + signupBonus;
+      user.balances.signupBonus =
+        (user.balances.signupBonus || 0) + signupBonus;
       await WalletTransaction.create({
         user: user._id,
         amount: signupBonus,
@@ -208,7 +209,8 @@ const registerWithUsername = async (req, res) => {
 
     if (signupBonus > 0) {
       user.balance = (user.balance || 0) + signupBonus;
-      user.profitBalance = (user.profitBalance || 0) + signupBonus;
+      user.balances.signupBonus =
+        (user.balances.signupBonus || 0) + signupBonus;
       await WalletTransaction.create({
         user: user._id,
         amount: signupBonus,

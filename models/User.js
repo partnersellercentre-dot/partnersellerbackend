@@ -21,11 +21,15 @@ const userSchema = new mongoose.Schema(
     role: { type: String, enum: ["user", "admin"], default: "user" },
     profileImage: { type: String, default: null },
     balance: { type: Number, default: 0 },
-    // 💰 Categorized Balances
-    profitBalance: { type: Number, default: 0 },
-    selfRechargeBonusBalance: { type: Number, default: 0 },
-    teamCommissionBalance: { type: Number, default: 0 },
-    referralRechargeBonusBalance: { type: Number, default: 0 },
+    // 💰 Balanced Buckets (Categorized)
+    balances: {
+      recharge: { type: Number, default: 0 },
+      profit: { type: Number, default: 0 },
+      teamCommission: { type: Number, default: 0 },
+      referralBonus: { type: Number, default: 0 },
+      selfBonus: { type: Number, default: 0 },
+      signupBonus: { type: Number, default: 0 },
+    },
 
     // 🏪 Store Info
     storeName: { type: String, default: "" },

@@ -148,6 +148,7 @@ async function handleIpn(req, res) {
       const user = await User.findById(deposit.user);
       if (user) {
         user.balance = (user.balance || 0) + amountReceived;
+        user.balances.recharge = (user.balances.recharge || 0) + amountReceived;
         await user.save();
 
         // Trigger Deposit Bonus (Self + Referral First Time)

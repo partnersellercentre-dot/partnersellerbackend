@@ -51,7 +51,7 @@ exports.getBasicStats = async (req, res) => {
     const userLastMonthSales = userLastMonthSalesAgg[0]?.total || 0;
 
     // User's available balance
-    const availableBalance = user.balance || 0;
+    const availableBalance = user.balances.recharge || 0;
 
     // User's in transaction (pending deposits/withdrawals)
     const userInTransactionAgg = await WalletTransaction.aggregate([
@@ -62,15 +62,13 @@ exports.getBasicStats = async (req, res) => {
 
     // Calculate Withdrawable Balance
     const earnedBalance =
-      (user.profitBalance || 0) +
-      (user.teamCommissionBalance || 0) +
-      (user.referralRechargeBonusBalance || 0) +
-      (user.selfRechargeBonusBalance || 0);
+      (user.balances.profit || 0) +
+      (user.balances.teamCommission || 0) +
+      (user.balances.referralBonus || 0) +
+      (user.balances.selfBonus || 0) +
+      (user.balances.signupBonus || 0);
 
-    let withdrawableBalance = availableBalance;
-    if (settings?.restrictWithdrawalToProfits) {
-      withdrawableBalance = Math.min(earnedBalance, availableBalance);
-    }
+    let withdrawableBalance = earnedBalance;
 
     // User's total profit (sum of all claimed profits * profitPercent)
     const userTotalProfitAgg = await Purchase.aggregate([
@@ -130,10 +128,7 @@ exports.getBasicStats = async (req, res) => {
         accountLevel: user.accountLevel,
         role: user.role,
         balance: user.balance,
-        profitBalance: user.profitBalance,
-        selfRechargeBonusBalance: user.selfRechargeBonusBalance,
-        teamCommissionBalance: user.teamCommissionBalance,
-        referralRechargeBonusBalance: user.referralRechargeBonusBalance,
+        balances: user.balances,
       },
       totalSales: userTotalSales,
       currentMonthSales: userCurrentMonthSales,
