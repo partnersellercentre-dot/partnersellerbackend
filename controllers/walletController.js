@@ -168,17 +168,12 @@ exports.withdrawRequest = async (req, res) => {
       (user.balances.signupBonus || 0);
 
     const settings = await SystemSettings.findOne();
-    let maxWithdrawable = user.balance;
-
-    if (settings?.restrictWithdrawalToProfits) {
-      maxWithdrawable = earnedBalance;
-    }
+    let maxWithdrawable = earnedBalance;
 
     if (maxWithdrawable < amount) {
       return res.status(400).json({
-        message: settings?.restrictWithdrawalToProfits
-          ? "Insufficient earned balance"
-          : "Insufficient balance",
+        message:
+          "Insufficient withdrawal balance. You can only withdraw from profits and bonuses.",
       });
     }
 
@@ -235,14 +230,6 @@ exports.withdrawRequest = async (req, res) => {
       user.balance -= fromSignup;
       remainingToDeduct -= fromSignup;
       deductions.signupBonus = fromSignup;
-    }
-
-    if (remainingToDeduct > 0) {
-      const fromRecharge = Math.min(user.balances.recharge, remainingToDeduct);
-      user.balances.recharge -= fromRecharge;
-      user.balance -= fromRecharge;
-      remainingToDeduct -= fromRecharge;
-      deductions.balance = fromRecharge;
     }
 
     await user.save();
