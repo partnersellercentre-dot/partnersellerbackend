@@ -45,6 +45,24 @@ const userSchema = new mongoose.Schema(
     // 💰 Crypto
     trc20Wallet: { type: String, default: "" },
     isDeleted: { type: Boolean, default: false },
+
+    // 🔗 Social Integration links
+    socialLinks: {
+      youtube: { type: String, default: "" },
+      instagram: { type: String, default: "" },
+      tiktok: { type: String, default: "" },
+      facebook: { type: String, default: "" },
+      whatsapp: { type: String, default: "" },
+      telegram: { type: String, default: "" },
+    },
+    latestActivityLink: { type: String, default: "" },
+    activityLinkHistory: [
+      {
+        link: { type: String, required: true },
+        platform: { type: String, default: "" },
+        date: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true },
 );

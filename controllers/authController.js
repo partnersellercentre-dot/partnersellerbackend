@@ -452,8 +452,69 @@ const updateProfile = async (req, res) => {
   }
 };
 
+const updateSocialLinks = async (req, res) => {
+  try {
+    const {
+      youtube,
+      instagram,
+      tiktok,
+      facebook,
+      whatsapp,
+      telegram,
+      latestActivityLink,
+      platform,
+    } = req.body;
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (youtube || instagram || tiktok || facebook || whatsapp || telegram) {
+      user.socialLinks = {
+        youtube: youtube || user.socialLinks?.youtube || "",
+        instagram: instagram || user.socialLinks?.instagram || "",
+        tiktok: tiktok || user.socialLinks?.tiktok || "",
+        facebook: facebook || user.socialLinks?.facebook || "",
+        whatsapp: whatsapp || user.socialLinks?.whatsapp || "",
+        telegram: telegram || user.socialLinks?.telegram || "",
+      };
+    }
+
+    if (latestActivityLink !== undefined) {
+      user.latestActivityLink = latestActivityLink;
+      // Add to history if not empty
+      if (latestActivityLink.trim() !== "") {
+        if (!user.activityLinkHistory) user.activityLinkHistory = [];
+        user.activityLinkHistory.unshift({
+          link: latestActivityLink,
+          platform: platform || "",
+          date: new Date(),
+        });
+        // Optional: Keep only last 10-20 entries
+        if (user.activityLinkHistory.length > 20) {
+          user.activityLinkHistory = user.activityLinkHistory.slice(0, 20);
+        }
+      }
+    }
+
+    await user.save();
+
+    res.json({
+      message: "Links updated successfully",
+      socialLinks: user.socialLinks,
+      latestActivityLink: user.latestActivityLink,
+      activityLinkHistory: user.activityLinkHistory,
+    });
+  } catch (err) {
+    console.error("Update social links error:", err.message);
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
+};
+
 module.exports = {
   updateProfile,
+  updateSocialLinks,
   sendOtpHandler,
   registerWithOtp,
   loginWithOtp,

@@ -7,6 +7,7 @@ const {
   loginWithUsername,
   getMe,
   updateProfile,
+  updateSocialLinks,
   forgotPassword,
   resetPassword,
 } = require("../controllers/authController");
@@ -29,8 +30,9 @@ router.put(
   "/update-profile",
   protect,
   upload.single("profileImage"),
-  updateProfile
+  updateProfile,
 );
+router.put("/update-social-links", protect, updateSocialLinks);
 
 // Profile route (after authentication)
 router.get("/me", protect, getMe);
