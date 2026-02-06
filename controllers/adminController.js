@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 const User = require("../models/User");
 const KYC = require("../models/KYC"); // ✅ Add this import
 const SystemSettings = require("../models/SystemSettings");
+const WalletTransaction = require("../models/WalletTransaction");
 
 // Generate JWT Token (include role)
 const generateToken = (id, role) => {
@@ -90,15 +91,35 @@ const getAdminProfile = async (req, res) => {
 // Get all users
 const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find({ isDeleted: { $ne: true } })
-      .sort({ _id: -1 })
-      .lean(); // ✅ lean ensures plain JS
+    const { search } = req.query;
+    let query = { isDeleted: { $ne: true } };
+
+    if (search) {
+      // Find KYC documents matching the search name
+      const kycMatches = await KYC.find({
+        name: { $regex: search, $options: "i" },
+      }).select("user");
+      const kycUserIds = kycMatches.map((k) => k.user);
+
+      query.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { fullName: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+        { _id: { $in: kycUserIds } },
+      ];
+    }
+
+    const users = await User.find(query).sort({ _id: -1 }).lean(); // ✅ lean ensures plain JS
     // Add KYC status to each user
     const usersWithKyc = await Promise.all(
       users.map(async (user) => {
         const kyc = await KYC.findOne({ user: user._id });
         const isKycApproved = kyc && kyc.status === "approved";
-        return { ...user, isKycApproved };
+        return {
+          ...user,
+          isKycApproved,
+          fullName: user.fullName || (kyc ? kyc.name : ""),
+        };
       }),
     );
     res.json({ users: usersWithKyc });
@@ -178,6 +199,40 @@ const verifyOrRejectKYC = async (req, res) => {
   } catch (err) {
     console.error("Error verifying/rejecting KYC:", err.message);
     res.status(500).json({ error: "Server error" });
+  }
+};
+
+const addBalanceToUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount } = req.body;
+
+    if (!amount || isNaN(amount) || amount <= 0) {
+      return res.status(400).json({ error: "Invalid amount" });
+    }
+
+    const user = await User.findById(id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    // Update balances
+    user.balances.recharge += Number(amount);
+    user.balance += Number(amount);
+
+    await user.save();
+
+    // Record transaction
+    await WalletTransaction.create({
+      user: user._id,
+      amount: Number(amount),
+      type: "deposit",
+      method: "Bonus",
+      status: "approved",
+      direction: "in",
+    });
+
+    res.json({ message: "Balance added successfully", balance: user.balance });
+  } catch (err) {
+    res.status(500).json({ error: "Server error", details: err.message });
   }
 };
 
@@ -284,6 +339,7 @@ module.exports = {
   getAllUsers,
   deleteUserById,
   updateUserStatus, // <-- add this
+  addBalanceToUser,
 
   verifyOrRejectKYC, // ✅ add this line
   getSystemSettings,

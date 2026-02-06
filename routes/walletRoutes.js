@@ -47,6 +47,13 @@ router.get(
   walletController.getAllTransactions,
 );
 
+router.delete(
+  "/transactions/:transactionId",
+  adminProtect,
+  admin,
+  walletController.deleteTransaction,
+);
+
 router.post(
   "/release-buyer-escrow",
   protect,

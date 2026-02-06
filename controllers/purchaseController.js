@@ -82,9 +82,17 @@ exports.buyProduct = async (req, res) => {
 
 exports.getMyPurchases = async (req, res) => {
   try {
+    const { page = 1, limit = 10 } = req.query;
+    const p = parseInt(page);
+    const l = parseInt(limit);
+    const skip = (p - 1) * l;
+
+    const totalPurchases = await Purchase.countDocuments({ user: req.user.id });
     const purchases = await Purchase.find({ user: req.user.id })
       .populate("product")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(l);
 
     const purchasesWithEscrow = await Promise.all(
       purchases.map(async (purchase) => {
@@ -102,8 +110,15 @@ exports.getMyPurchases = async (req, res) => {
       }),
     );
 
-    res.json({ success: true, purchases: purchasesWithEscrow });
+    res.json({
+      success: true,
+      purchases: purchasesWithEscrow,
+      totalPages: Math.ceil(totalPurchases / l),
+      currentPage: p,
+      totalPurchases,
+    });
   } catch (error) {
+    console.error("getMyPurchases error:", error);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
@@ -111,7 +126,35 @@ exports.getMyPurchases = async (req, res) => {
 // Admin: get all purchases
 exports.getAllPurchases = async (req, res) => {
   try {
-    const purchases = await Purchase.find()
+    const { search } = req.query;
+    let query = {};
+
+    if (search) {
+      // Find matching users
+      const users = await User.find({
+        $or: [
+          { name: { $regex: search, $options: "i" } },
+          { email: { $regex: search, $options: "i" } },
+        ],
+      }).select("_id");
+      const userIds = users.map((u) => u._id);
+
+      // Find matching products
+      const products = await Product.find({
+        name: { $regex: search, $options: "i" },
+      }).select("_id");
+      const productIds = products.map((p) => p._id);
+
+      query = {
+        $or: [
+          { user: { $in: userIds } },
+          { product: { $in: productIds } },
+          { _id: search.match(/^[0-9a-fA-F]{24}$/) ? search : null }, // Support search by full ID
+        ].filter((q) => q._id !== null), // Remove null entry if ID doesn't match
+      };
+    }
+
+    const purchases = await Purchase.find(query)
       .populate("user")
       .populate("product")
       .sort({ createdAt: -1 });

@@ -521,12 +521,37 @@ exports.getMyTransactions = async (req, res) => {
 // Admin transactions
 exports.getAllTransactions = async (req, res) => {
   try {
-    const { status } = req.query;
-    const filter = status ? { status } : {};
+    const { status, type } = req.query;
+    const filter = {};
+    if (status) filter.status = status;
+    if (type) filter.type = type;
+
     const transactions = await WalletTransaction.find(filter)
       .populate("user")
       .sort({ createdAt: -1 });
     res.json({ success: true, transactions });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Delete transaction (e.g. if created by mistake and still pending)
+exports.deleteTransaction = async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    const transaction = await WalletTransaction.findById(transactionId);
+    if (!transaction) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Transaction not found" });
+    }
+
+    // We can allow deleting only pending transactions or any?
+    // Usually only pending if it's for cleanup.
+    // However, if admin wants to delete anything, we can allow it.
+    await WalletTransaction.findByIdAndDelete(transactionId);
+
+    res.json({ success: true, message: "Transaction deleted successfully" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

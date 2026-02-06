@@ -364,6 +364,7 @@ const getMe = async (req, res) => {
     res.json({
       ...user.toObject(),
       username: user.name,
+      fullName: user.fullName, // Add this line
       isKycApproved,
     });
   } catch (err) {
@@ -376,10 +377,11 @@ const updateProfile = async (req, res) => {
   try {
     const userId = req.user._id;
     console.log("Update Body:", req.body);
-    const { storeName, username, email } = req.body;
+    const { storeName, username, email, fullName } = req.body;
 
     let updateData = {};
     if (storeName) updateData.storeName = storeName;
+    if (fullName) updateData.fullName = fullName;
 
     if (username && username.trim() !== "") {
       const existingUsername = await User.findOne({
@@ -441,6 +443,7 @@ const updateProfile = async (req, res) => {
       user: {
         ...user.toObject(),
         username: user.name,
+        fullName: user.fullName,
       },
     });
   } catch (err) {

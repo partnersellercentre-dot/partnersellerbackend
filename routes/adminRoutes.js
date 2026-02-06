@@ -7,6 +7,7 @@ const {
   deleteUserById,
   verifyOrRejectKYC,
   updateUserStatus,
+  addBalanceToUser,
   getSystemSettings,
   updateSystemSettings,
   getAllAdmins,
@@ -53,6 +54,7 @@ router.put("/verify/:id", adminProtect, admin, verifyOrRejectKYC);
 router.get("/admin-profile", adminProtect, admin, getAdminProfile);
 router.delete("/users/:id", adminProtect, deleteUserById); // DELETE route to delete a user
 router.put("/users/:id/status", adminProtect, admin, updateUserStatus);
+router.post("/users/:id/add-balance", adminProtect, admin, addBalanceToUser);
 
 // Admins Management
 router.get("/all-admins", adminProtect, admin, getAllAdmins);
