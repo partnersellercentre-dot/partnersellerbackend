@@ -37,10 +37,17 @@ exports.markAsRead = async (req, res) => {
   try {
     const { id } = req.params;
 
+    if (id === "all") {
+      await Notification.updateMany({ isRead: false }, { isRead: true });
+      return res
+        .status(200)
+        .json({ success: true, message: "All notifications marked as read" });
+    }
+
     const notification = await Notification.findByIdAndUpdate(
       id,
       { isRead: true },
-      { new: true }
+      { new: true },
     );
 
     if (!notification)

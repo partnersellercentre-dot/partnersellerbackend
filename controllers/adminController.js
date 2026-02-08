@@ -224,8 +224,9 @@ const addBalanceToUser = async (req, res) => {
     await WalletTransaction.create({
       user: user._id,
       amount: Number(amount),
-      type: "deposit",
-      method: "Bonus",
+      type: "bonus",
+      method: "Rewards credit",
+      description: "Rewards credit",
       status: "approved",
       direction: "in",
     });

@@ -89,9 +89,14 @@ const registerWithOtp = async (req, res) => {
     const newReferralCode = Math.floor(
       1000000000 + Math.random() * 9000000000,
     ).toString();
-    let referrer = null;
-    if (referralCode) {
-      referrer = await User.findOne({ referralCode });
+
+    if (!referralCode) {
+      return res.status(400).json({ error: "Referral code is required" });
+    }
+
+    const referrer = await User.findOne({ referralCode });
+    if (!referrer) {
+      return res.status(400).json({ error: "Invalid referral code" });
     }
 
     user.passwordHash = passwordHash;
@@ -99,7 +104,7 @@ const registerWithOtp = async (req, res) => {
     user.isVerified = true;
     user.otp = null;
     user.otpExpires = null;
-    user.referredBy = referrer ? referrer._id : null; // <-- set referredBy
+    user.referredBy = referrer._id; // <-- set referredBy
 
     // Apply Signup Bonus
     const settings = await SystemSettings.findOne();
@@ -205,9 +210,13 @@ const registerWithUsername = async (req, res) => {
       1000000000 + Math.random() * 9000000000,
     ).toString();
 
-    let referrer = null;
-    if (invitationCode) {
-      referrer = await User.findOne({ referralCode: invitationCode });
+    if (!invitationCode) {
+      return res.status(400).json({ error: "Invitation code is required" });
+    }
+
+    const referrer = await User.findOne({ referralCode: invitationCode });
+    if (!referrer) {
+      return res.status(400).json({ error: "Invalid invitation code" });
     }
 
     const user = await User.create({
@@ -218,7 +227,7 @@ const registerWithUsername = async (req, res) => {
       isVerified: true,
       role: "user",
       referralCode,
-      referredBy: referrer ? referrer._id : null, // <-- set referredBy
+      referredBy: referrer._id, // <-- set referredBy
     });
 
     // Apply Signup Bonus

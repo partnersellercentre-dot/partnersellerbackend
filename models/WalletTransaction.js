@@ -22,6 +22,7 @@ const walletTransactionSchema = new mongoose.Schema(
       required: true,
     },
     purchase: { type: mongoose.Schema.Types.ObjectId, ref: "Purchase" }, // <-- add this line
+    description: { type: String }, // ✅ added for remarks
     method: {
       type: String,
       enum: [
@@ -39,6 +40,7 @@ const walletTransactionSchema = new mongoose.Schema(
         "Team Commission",
         "Referral Recharge Bonus",
         "Bonus",
+        "Rewards credit",
         "Profit",
         "Transfer",
       ],
