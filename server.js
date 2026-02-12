@@ -1,6 +1,21 @@
 const express = require("express");
 require("dotenv").config();
+
+// ✅ Validate sensitive environment variables
+if (process.env.NODE_ENV === "production") {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+    console.error(
+      "❌ FATAL ERROR: JWT_SECRET is missing or too weak (min 32 chars).",
+    );
+    process.exit(1);
+  }
+}
+
 const cors = require("cors");
+const rateLimit = require("express-rate-limit");
+const mongoSanitize = require("express-mongo-sanitize");
+const xss = require("xss-clean");
+const helmet = require("helmet");
 const connectDB = require("./config/db");
 
 // Import routes
@@ -16,6 +31,16 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const depositRoutes = require("./routes/depositRoutes");
 
 const app = express();
+
+// ✅ Security Headers
+app.use(helmet());
+
+// ✅ Trust proxy - Essential for rate limiting behind Vercel/Cloudflare
+app.set("trust proxy", 1);
+
+// ✅ Sanitization
+app.use(mongoSanitize()); // Prevent NoSQL injection
+app.use(xss()); // Prevent XSS
 
 // ✅ Connect DB
 connectDB();
@@ -47,6 +72,31 @@ const corsOptions = {
 
 // ✅ Apply CORS globally — MUST be before routes
 app.use(cors(corsOptions));
+
+// ✅ Rate limiting
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: "Too many requests, please try again later.",
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5, // 5 attempts per 15 minutes
+  skipSuccessfulRequests: true,
+});
+
+// Apply global limiter to all API routes
+app.use("/api/", globalLimiter);
+
+// Strict limiter for auth endpoints
+app.use("/api/auth/login-username", authLimiter);
+app.use("/api/auth/login-otp", authLimiter);
+app.use("/api/auth/register-username", authLimiter);
+app.use("/api/auth/register-otp", authLimiter);
+app.use("/api/auth/send-otp", authLimiter);
+app.use("/api/auth/forgot-password", authLimiter);
+app.use("/api/admin/login", authLimiter);
 
 // ✅ Ensure preflight requests handled globally
 app.options("*", cors(corsOptions));

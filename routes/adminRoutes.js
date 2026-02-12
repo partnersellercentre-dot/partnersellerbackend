@@ -15,13 +15,26 @@ const {
   updateAdmin,
 } = require("../controllers/adminController");
 const { admin, adminProtect } = require("../middleware/authMiddleware");
+const Admin = require("../models/Admin");
 const Purchase = require("../models/Purchase"); // Add at top
 const WalletTransaction = require("../models/WalletTransaction"); // Add at top
 const SystemSettings = require("../models/SystemSettings"); // Add this import
 const router = express.Router();
 
-// Register Admin
-router.post("/register", adminProtect, admin, registerAdmin);
+// Register Admin (Modified to allow first admin registration)
+router.post(
+  "/register",
+  async (req, res, next) => {
+    const adminCount = await Admin.countDocuments();
+    if (adminCount === 0) {
+      // Bootstrap case: No admins exist yet
+      return next();
+    }
+    // Standard case: Require admin token
+    return adminProtect(req, res, () => admin(req, res, next));
+  },
+  registerAdmin,
+);
 
 // Login Admin
 router.post("/login", loginAdmin);

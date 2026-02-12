@@ -9,7 +9,9 @@ const userSchema = new mongoose.Schema(
     passwordHash: { type: String },
 
     otp: { type: String },
+    otpHash: { type: String }, // Hashed version for better security
     otpExpires: { type: Date },
+    otpAttempts: { type: Number, default: 0 },
     referralCode: { type: String },
     referredBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     accountLevel: { type: Number, default: 1 },

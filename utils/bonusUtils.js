@@ -121,6 +121,9 @@ const processReferralBonus = async (userId, amount, type) => {
     let currentUser = await User.findById(userId);
     if (!currentUser) return;
 
+    // Store original user's name for descriptions
+    const originalUserName = currentUser.name || currentUser.email || "Unknown";
+
     // Traverse up the chain
     let currentLevel = 1;
 
@@ -149,7 +152,7 @@ const processReferralBonus = async (userId, amount, type) => {
             amount: bonusAmount,
             type: "team_commission",
             status: "approved",
-            description: `Referral bonus (Level ${currentLevel}) from ${type} of ${amount} by user ${userId}`,
+            description: `Referral bonus (Level ${currentLevel}) from ${type} of ${amount} by user ${originalUserName}`,
             method: "Team Commission",
             direction: "in",
           });

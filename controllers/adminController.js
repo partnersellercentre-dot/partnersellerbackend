@@ -16,6 +16,16 @@ const registerAdmin = async (req, res) => {
   const { username, password } = req.body;
 
   try {
+    const adminCount = await Admin.countDocuments();
+
+    // If admins already exist, ensure the request is coming from an existing admin
+    // This is a safety measure in case the middleware is bypassed or misconfigured
+    if (adminCount > 0 && (!req.admin || req.admin.role !== "admin")) {
+      return res
+        .status(403)
+        .json({ error: "Unauthorized. Admin registration is closed." });
+    }
+
     const adminExists = await Admin.findOne({ username });
     if (adminExists) {
       return res.status(400).json({ error: "Admin already exists" });
