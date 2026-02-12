@@ -4,26 +4,35 @@ const Purchase = require("../models/Purchase");
 const Notification = require("../models/Notification");
 const WalletTransaction = require("../models/WalletTransaction");
 const { processReferralBonus } = require("../utils/bonusUtils");
+const mongoose = require("mongoose");
 
 exports.buyProduct = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
   try {
     const { productId } = req.body;
     const userId = req.user.id;
 
     // 1. Find product
-    const product = await Product.findById(productId);
+    const product = await Product.findById(productId).session(session);
     if (!product) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: "Product not found" });
     }
 
     // 2. Find user
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).session(session);
     if (!user) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: "User not found" });
     }
 
     // 3. Check balance (Recharge only)
     if ((user.balances?.recharge || 0) < product.price) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: "Insufficient recharge balance" });
     }
 
@@ -40,32 +49,52 @@ exports.buyProduct = async (req, res) => {
     user.balances.recharge -= product.price;
     user.balance -= product.price;
 
-    await user.save();
+    await user.save({ session });
 
     // 5. Record purchase
-    const purchase = await Purchase.create({
-      user: userId,
-      product: productId,
-      amount: product.price,
-    });
+    const purchaseArr = await Purchase.create(
+      [
+        {
+          user: userId,
+          product: productId,
+          amount: product.price,
+        },
+      ],
+      { session },
+    );
+    const purchase = purchaseArr[0];
 
-    await Notification.create({
-      title: "New Purchase",
-      message: `${req.user.name} purchased ${product.name}.`,
-      user: req.user._id,
-    });
+    await Notification.create(
+      [
+        {
+          title: "New Purchase",
+          message: `${req.user.name} purchased ${product.name}.`,
+          user: req.user._id,
+        },
+      ],
+      { session },
+    );
 
     // 6. Create escrow transaction for buyer only
-    const buyerEscrowTxn = await WalletTransaction.create({
-      user: userId,
-      amount: product.price,
-      type: "escrow",
-      status: "pending",
-      purchase: purchase._id,
-      method: "Escrow",
-      direction: "out",
-      deductions,
-    });
+    const buyerEscrowTxnArr = await WalletTransaction.create(
+      [
+        {
+          user: userId,
+          amount: product.price,
+          type: "escrow",
+          status: "pending",
+          purchase: purchase._id,
+          method: "Escrow",
+          direction: "out",
+          deductions,
+        },
+      ],
+      { session },
+    );
+    const buyerEscrowTxn = buyerEscrowTxnArr[0];
+
+    await session.commitTransaction();
+    session.endSession();
 
     res.status(201).json({
       success: true,
@@ -75,6 +104,8 @@ exports.buyProduct = async (req, res) => {
       buyerEscrowTransactionId: buyerEscrowTxn._id,
     });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     console.error("Buy product error:", error);
     res.status(500).json({ message: "Server error", error: error.message });
   }

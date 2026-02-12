@@ -37,15 +37,23 @@ exports.depositRequest = async (req, res) => {
 
 // Admin approves deposit
 exports.approveDeposit = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
   try {
     const { transactionId, amount } = req.body;
 
-    const transaction =
-      await WalletTransaction.findById(transactionId).populate("user");
-    if (!transaction)
+    const transaction = await WalletTransaction.findById(transactionId)
+      .populate("user")
+      .session(session);
+    if (!transaction) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: "Transaction not found" });
+    }
 
     if (transaction.status !== "pending") {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: "Transaction already processed" });
     }
 
@@ -56,19 +64,24 @@ exports.approveDeposit = async (req, res) => {
 
     // Update status
     transaction.status = "approved";
-    await transaction.save();
+    await transaction.save({ session });
 
     // Add balance to user
     transaction.user.balance += transaction.amount;
     transaction.user.balances.recharge =
       (transaction.user.balances.recharge || 0) + transaction.amount;
-    await transaction.user.save();
+    await transaction.user.save({ session });
 
-    // Trigger Deposit Bonus (Self + Referral First Time)
+    await session.commitTransaction();
+    session.endSession();
+
+    // Trigger Deposit Bonus (Self + Referral First Time) - Run outside transaction if it doesn't support it or for simplicity
     await processDepositBonus(transaction.user._id, transaction.amount);
 
     res.json({ success: true, message: "Deposit approved", transaction });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -96,48 +109,67 @@ exports.rejectDeposit = async (req, res) => {
 };
 
 exports.releaseBuyerEscrow = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
   try {
     const { transactionId } = req.body;
-    const txn =
-      await WalletTransaction.findById(transactionId).populate("user purchase");
+    const txn = await WalletTransaction.findById(transactionId)
+      .populate("user purchase")
+      .session(session);
     if (
       !txn ||
       txn.type !== "escrow" ||
       (txn.direction && txn.direction !== "out")
-    )
+    ) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: "Escrow transaction not found" });
+    }
 
     // Check if 24 hours have passed since purchase
     const now = new Date();
     const created = new Date(txn.purchase.createdAt);
     const secondsPassed = (now - created) / 1000;
-    if (secondsPassed < 86400)
+    if (secondsPassed < 86400) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: "24 hours not completed yet" });
+    }
 
     if (txn.status === "approved") {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: "Funds already released" });
     }
 
     txn.status = "approved";
-    await txn.save();
+    await txn.save({ session });
 
     // Add balance to user
-    const user = await User.findById(txn.user._id);
+    const user = await User.findById(txn.user._id).session(session);
     user.balance = Math.round((user.balance + txn.amount) * 100) / 100;
     user.balances.recharge =
       Math.round(((user.balances.recharge || 0) + txn.amount) * 100) / 100;
-    await user.save();
+    await user.save({ session });
 
     // Create a new transaction record for the release/transfer in
-    await WalletTransaction.create({
-      user: txn.user._id,
-      amount: txn.amount,
-      type: "transfer",
-      status: "approved",
-      direction: "in",
-      purchase: txn.purchase?._id,
-      method: "Transfer",
-    });
+    await WalletTransaction.create(
+      [
+        {
+          user: txn.user._id,
+          amount: txn.amount,
+          type: "transfer",
+          status: "approved",
+          direction: "in",
+          purchase: txn.purchase?._id,
+          method: "Transfer",
+        },
+      ],
+      { session },
+    );
+
+    await session.commitTransaction();
+    session.endSession();
 
     res.json({
       success: true,
@@ -145,18 +177,24 @@ exports.releaseBuyerEscrow = async (req, res) => {
       transaction: txn,
     });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     res.status(500).json({ success: false, message: error.message });
   }
 };
 // ------------------ WITHDRAW ------------------
 
 exports.withdrawRequest = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
   try {
     const { amount, method, accountName, accountNumber } = req.body;
     const userId = req.user.id;
 
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).session(session);
     if (!user) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: "User not found" });
     }
 
@@ -167,10 +205,11 @@ exports.withdrawRequest = async (req, res) => {
       (user.balances.selfBonus || 0) +
       (user.balances.signupBonus || 0);
 
-    const settings = await SystemSettings.findOne();
     let maxWithdrawable = earnedBalance;
 
     if (maxWithdrawable < amount) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({
         message:
           "Insufficient withdrawal balance. You can only withdraw from withdrawable balance",
@@ -232,25 +271,40 @@ exports.withdrawRequest = async (req, res) => {
       deductions.signupBonus = fromSignup;
     }
 
-    await user.save();
+    await user.save({ session });
 
-    const transaction = await WalletTransaction.create({
-      user: userId,
-      amount, // original amount requested
-      fee, // store fee
-      netAmount, // store net amount user will receive
-      method,
-      accountName,
-      accountNumber,
-      type: "withdraw",
-      status: "pending",
-      deductions,
-    });
-    await Notification.create({
-      title: "New Withdraw Request",
-      message: `${req.user.name} requested a withdrawal of $${amount}. Net payout after 3.8% fee: $${netAmount}.`,
-      user: req.user._id,
-    });
+    const transactionArr = await WalletTransaction.create(
+      [
+        {
+          user: userId,
+          amount, // original amount requested
+          fee, // store fee
+          netAmount, // store net amount user will receive
+          method,
+          accountName,
+          accountNumber,
+          type: "withdraw",
+          status: "pending",
+          deductions,
+        },
+      ],
+      { session },
+    );
+    const transaction = transactionArr[0];
+
+    await Notification.create(
+      [
+        {
+          title: "New Withdraw Request",
+          message: `${req.user.name} requested a withdrawal of $${amount}. Net payout after 3.8% fee: $${netAmount}.`,
+          user: req.user._id,
+        },
+      ],
+      { session },
+    );
+
+    await session.commitTransaction();
+    session.endSession();
 
     res.status(201).json({
       success: true,
@@ -258,6 +312,8 @@ exports.withdrawRequest = async (req, res) => {
       transaction,
     });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -290,17 +346,24 @@ exports.approveWithdraw = async (req, res) => {
 };
 
 exports.rejectWithdraw = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
   try {
     const { transactionId } = req.body;
 
     // Find transaction and populate user
-    const transaction =
-      await WalletTransaction.findById(transactionId).populate("user");
+    const transaction = await WalletTransaction.findById(transactionId)
+      .populate("user")
+      .session(session);
     if (!transaction) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: "Transaction not found" });
     }
 
     if (transaction.status !== "pending") {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: "Transaction already processed" });
     }
 
@@ -315,32 +378,43 @@ exports.rejectWithdraw = async (req, res) => {
       transaction.user.balances.selfBonus += d.selfBonus || 0;
       transaction.user.balances.signupBonus += d.signupBonus || 0;
 
-      await transaction.user.save();
+      await transaction.user.save({ session });
     }
 
     transaction.status = "rejected";
-    await transaction.save();
+    await transaction.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
 
     res.json({
       success: true,
       message: "Withdraw rejected and amount refunded",
     });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
 exports.transferFunds = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
   try {
     const { amount, direction } = req.body;
     const userId = req.user.id;
 
     if (!amount || amount <= 0) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: "Invalid amount" });
     }
 
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).session(session);
     if (!user) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: "User not found" });
     }
 
@@ -354,6 +428,8 @@ exports.transferFunds = async (req, res) => {
         (user.balances.signupBonus || 0);
 
       if (earnedBalance < amount) {
+        await session.abortTransaction();
+        session.endSession();
         return res.status(400).json({ message: "Insufficient earned balance" });
       }
 
@@ -391,32 +467,46 @@ exports.transferFunds = async (req, res) => {
       // Add to recharge (available)
       user.balances.recharge += amount;
 
-      await user.save();
+      await user.save({ session });
 
       // Create transaction record
-      await WalletTransaction.create({
-        user: userId,
-        amount: amount,
-        type: "transfer",
-        status: "approved",
-        direction: "in",
-        method: "Transfer",
-        description: "Transferred from earnings to available balance",
-      });
+      await WalletTransaction.create(
+        [
+          {
+            user: userId,
+            amount: amount,
+            type: "transfer",
+            status: "approved",
+            direction: "in",
+            method: "Transfer",
+            description: "Transferred from earnings to available balance",
+          },
+        ],
+        { session },
+      );
+
+      await session.commitTransaction();
+      session.endSession();
 
       return res.json({
         success: true,
         message: "Funds transferred successfully",
       });
     } else if (direction === "AtoB") {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({
         message:
           "To ensure swapping must completed 60x turnover of recharge volume. Once the criteria are met, funds may be moved to Earn-Wallet for withdrawal.",
       });
     } else {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: "Invalid direction" });
     }
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     res.status(500).json({ success: false, message: error.message });
   }
 };

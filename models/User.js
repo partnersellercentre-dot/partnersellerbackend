@@ -69,4 +69,8 @@ const userSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// ✅ Add indexes for performance
+userSchema.index({ role: 1 });
+userSchema.index({ createdAt: -1 });
+
 module.exports = mongoose.model("User", userSchema);

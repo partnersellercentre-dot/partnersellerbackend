@@ -38,20 +38,27 @@ exports.markAsRead = async (req, res) => {
     const { id } = req.params;
 
     if (id === "all") {
-      await Notification.updateMany({ isRead: false }, { isRead: true });
+      await Notification.updateMany(
+        { user: req.user.id, isRead: false },
+        { isRead: true },
+      );
       return res
         .status(200)
         .json({ success: true, message: "All notifications marked as read" });
     }
 
-    const notification = await Notification.findByIdAndUpdate(
-      id,
-      { isRead: true },
-      { new: true },
-    );
+    const notification = await Notification.findOne({
+      _id: id,
+      user: req.user.id,
+    });
+    if (!notification) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Notification not found" });
+    }
 
-    if (!notification)
-      return res.status(404).json({ success: false, message: "Not found" });
+    notification.isRead = true;
+    await notification.save();
 
     res.status(200).json({ success: true, notification });
   } catch (error) {

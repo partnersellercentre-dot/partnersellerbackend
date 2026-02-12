@@ -16,7 +16,12 @@ const purchaseSchema = new mongoose.Schema(
     },
     paymentClaimedAt: { type: Date }, // When profit was claimed
   },
-  { timestamps: true }
+  { timestamps: true },
 );
+
+// ✅ Add indexes for performance
+purchaseSchema.index({ user: 1 });
+purchaseSchema.index({ product: 1 });
+purchaseSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model("Purchase", purchaseSchema);

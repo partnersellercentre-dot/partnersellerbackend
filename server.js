@@ -3,10 +3,27 @@ require("dotenv").config();
 
 // ✅ Validate sensitive environment variables
 if (process.env.NODE_ENV === "production") {
-  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
-    console.error(
-      "❌ FATAL ERROR: JWT_SECRET is missing or too weak (min 32 chars).",
-    );
+  const requiredEnvVars = [
+    "JWT_SECRET",
+    "MONGO_URI",
+    "CLOUDINARY_CLOUD_NAME",
+    "CLOUDINARY_API_KEY",
+    "CLOUDINARY_API_SECRET",
+    "PUSHER_APP_ID",
+    "PUSHER_APP_KEY",
+    "PUSHER_APP_SECRET",
+    "PUSHER_APP_CLUSTER",
+  ];
+
+  requiredEnvVars.forEach((varName) => {
+    if (!process.env[varName]) {
+      console.error(`❌ FATAL ERROR: ${varName} is missing in production.`);
+      process.exit(1);
+    }
+  });
+
+  if (process.env.JWT_SECRET.length < 32) {
+    console.error("❌ FATAL ERROR: JWT_SECRET must be at least 32 characters.");
     process.exit(1);
   }
 }
@@ -32,6 +49,21 @@ const depositRoutes = require("./routes/depositRoutes");
 
 const app = express();
 
+// ✅ CORS (Allow all origins for production)
+app.use(cors());
+
+// ✅ HTTPS Enforcement in production
+app.use((req, res, next) => {
+  if (
+    process.env.NODE_ENV === "production" &&
+    !req.secure &&
+    req.get("x-forwarded-proto") !== "https"
+  ) {
+    return res.redirect(`https://${req.hostname}${req.url}`);
+  }
+  next();
+});
+
 // ✅ Security Headers
 app.use(helmet());
 
@@ -42,68 +74,12 @@ app.set("trust proxy", 1);
 app.use(mongoSanitize()); // Prevent NoSQL injection
 app.use(xss()); // Prevent XSS
 
+// ✅ Body parser with size limits (#20)
+app.use(express.json({ limit: "10kb" }));
+app.use(express.urlencoded({ extended: true, limit: "10kb" }));
+
 // ✅ Connect DB
 connectDB();
-
-// ✅ CORS configuration
-const allowedOrigins = [
-  process.env.FRONTEND_URL || "http://localhost:5173",
-  "https://www.partnersellercentre.shop",
-];
-
-const corsOptions = {
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: [
-    "Content-Type",
-    "Authorization",
-    "X-Requested-With",
-    "Accept",
-    "Origin",
-  ],
-};
-
-// ✅ Apply CORS globally — MUST be before routes
-app.use(cors(corsOptions));
-
-// ✅ Rate limiting
-const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: "Too many requests, please try again later.",
-});
-
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5, // 5 attempts per 15 minutes
-  skipSuccessfulRequests: true,
-});
-
-// Apply global limiter to all API routes
-app.use("/api/", globalLimiter);
-
-// Strict limiter for auth endpoints
-app.use("/api/auth/login-username", authLimiter);
-app.use("/api/auth/login-otp", authLimiter);
-app.use("/api/auth/register-username", authLimiter);
-app.use("/api/auth/register-otp", authLimiter);
-app.use("/api/auth/send-otp", authLimiter);
-app.use("/api/auth/forgot-password", authLimiter);
-app.use("/api/admin/login", authLimiter);
-
-// ✅ Ensure preflight requests handled globally
-app.options("*", cors(corsOptions));
-
-// ✅ Body parser
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 // ✅ Health check
 app.get("/", (req, res) => {
@@ -126,6 +102,22 @@ app.use("/api/announcements", announcementRoutes);
 app.use("/api/statistics", require("./routes/useStatistics"));
 app.use("/api/chat", require("./routes/chatRoutes"));
 app.use("/api/safepay", require("./routes/safepayRoutes"));
+
+// ✅ Global Error Handler (#15)
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+
+  // Don't leak internal error details to the client in production
+  const message =
+    process.env.NODE_ENV === "production"
+      ? "An internal server error occurred"
+      : err.message;
+
+  res.status(err.status || 500).json({
+    error: message,
+    ...(process.env.NODE_ENV !== "production" && { stack: err.stack }),
+  });
+});
 
 // ✅ Local development
 if (require.main === module) {

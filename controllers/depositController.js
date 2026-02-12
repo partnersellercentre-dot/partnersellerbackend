@@ -80,8 +80,7 @@ async function initDeposit(req, res) {
 // IPN webhook / callback
 async function handleIpn(req, res) {
   try {
-    const isLocal =
-      process.env.NODE_ENV === "development" || req.hostname === "localhost";
+    const isLocal = process.env.NODE_ENV === "development";
     const { MerchantApi, CheckTransactionRequest } = await loadPaykassa();
     const merchantApi = new MerchantApi(
       process.env.PAYKASSA_MERCHANT_ID,

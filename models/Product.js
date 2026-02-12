@@ -26,8 +26,12 @@ const productSchema = new mongoose.Schema(
     stock: { type: Number, required: true }, // <-- add this line
     rating: { type: Number, default: 0 }, // <-- add this line
   },
-  { timestamps: true }
+  { timestamps: true },
 );
+
+// ✅ Add indexes for performance
+productSchema.index({ category: 1 });
+productSchema.index({ createdAt: -1 });
 
 const Product = mongoose.model("Product", productSchema);
 

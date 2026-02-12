@@ -8,7 +8,10 @@ const WalletTransaction = require("../models/WalletTransaction");
 
 // Generate JWT Token (include role)
 const generateToken = (id, role) => {
-  return jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: "7d" });
+  // Shorter expiry for admin tokens (#18)
+  return jwt.sign({ id, role }, process.env.JWT_SECRET, {
+    expiresIn: role === "admin" ? "2h" : "7d",
+  });
 };
 
 // Register Admin
@@ -101,7 +104,9 @@ const getAdminProfile = async (req, res) => {
 // Get all users
 const getAllUsers = async (req, res) => {
   try {
-    const { search } = req.query;
+    const { search, page = 1, limit = 50 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
     let query = { isDeleted: { $ne: true } };
 
     if (search) {
@@ -119,20 +124,43 @@ const getAllUsers = async (req, res) => {
       ];
     }
 
-    const users = await User.find(query).sort({ _id: -1 }).lean(); // ✅ lean ensures plain JS
-    // Add KYC status to each user
-    const usersWithKyc = await Promise.all(
-      users.map(async (user) => {
-        const kyc = await KYC.findOne({ user: user._id });
-        const isKycApproved = kyc && kyc.status === "approved";
-        return {
-          ...user,
-          isKycApproved,
-          fullName: user.fullName || (kyc ? kyc.name : ""),
-        };
-      }),
-    );
-    res.json({ users: usersWithKyc });
+    const totalUsers = await User.countDocuments(query);
+    const users = await User.find(query)
+      .select("-passwordHash -otpHash") // Exclude sensitive auth fields
+      .sort({ _id: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .lean();
+
+    // ✅ Performance: Avoid N+1 by fetching all KYC records in one query
+    const userIds = users.map((user) => user._id);
+    const kycRecords = await KYC.find({ user: { $in: userIds } }).lean();
+
+    const kycMap = kycRecords.reduce((acc, kyc) => {
+      acc[kyc.user.toString()] = kyc;
+      return acc;
+    }, {});
+
+    const usersWithKyc = users.map((user) => {
+      const kyc = kycMap[user._id.toString()];
+      const isKycApproved = kyc && kyc.status === "approved";
+
+      return {
+        ...user,
+        isKycApproved,
+        fullName: user.fullName || (kyc ? kyc.name : ""),
+      };
+    });
+
+    res.json({
+      users: usersWithKyc,
+      pagination: {
+        total: totalUsers,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(totalUsers / parseInt(limit)),
+      },
+    });
   } catch (err) {
     console.error("Get all users error:", err.message);
     res.status(500).json({ error: "Server error", details: err.message });
