@@ -49,8 +49,21 @@ const depositRoutes = require("./routes/depositRoutes");
 
 const app = express();
 
-// ✅ CORS (Allow all origins for production)
-app.use(cors());
+// ✅ Trust proxy - Essential for detecting HTTPS and rate limiting
+app.set("trust proxy", 1);
+
+// ✅ CORS Configuration
+app.use(
+  cors({
+    origin: [
+      "https://www.partnersellercentre.shop",
+      "https://partnersellercentre.shop",
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    credentials: true,
+  }),
+);
 
 // ✅ HTTPS Enforcement in production
 app.use((req, res, next) => {
@@ -67,16 +80,13 @@ app.use((req, res, next) => {
 // ✅ Security Headers
 app.use(helmet());
 
-// ✅ Trust proxy - Essential for rate limiting behind Vercel/Cloudflare
-app.set("trust proxy", 1);
-
 // ✅ Sanitization
 app.use(mongoSanitize()); // Prevent NoSQL injection
 app.use(xss()); // Prevent XSS
 
 // ✅ Body parser with size limits (#20)
-app.use(express.json({ limit: "10kb" }));
-app.use(express.urlencoded({ extended: true, limit: "10kb" }));
+app.use(express.json({ limit: "50kb" }));
+app.use(express.urlencoded({ extended: true, limit: "50kb" }));
 
 // ✅ Connect DB
 connectDB();
