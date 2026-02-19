@@ -90,13 +90,11 @@ const registerWithOtp = async (req, res) => {
       1000000000 + Math.random() * 9000000000,
     ).toString();
 
-    let referrer = null;
-    if (referralCode) {
-      referrer = await User.findOne({ referralCode });
-      if (!referrer) {
-        return res.status(400).json({ error: "Invalid referral code" });
-      }
+    if (!referralCode) {
+      return res.status(400).json({ error: "Invitation code is required" });
     }
+
+    const referrer = await User.findOne({ referralCode });
 
     user.passwordHash = passwordHash;
     user.referralCode = newReferralCode;
@@ -211,13 +209,11 @@ const registerWithUsername = async (req, res) => {
       1000000000 + Math.random() * 9000000000,
     ).toString();
 
-    let referrer = null;
-    if (invitationCode) {
-      referrer = await User.findOne({ referralCode: invitationCode });
-      if (!referrer) {
-        return res.status(400).json({ error: "Invalid invitation code" });
-      }
+    if (!invitationCode) {
+      return res.status(400).json({ error: "Invitation code is required" });
     }
+
+    const referrer = await User.findOne({ referralCode: invitationCode });
 
     const user = await User.create({
       name: username,
