@@ -181,24 +181,3 @@ exports.handleIPN = async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 };
-        // This will create a separate WalletTransaction for the bonus itself
-        await processDepositBonus(user._id, amountToAdd);
-
-        console.log(
-          `User ${user._id} balance updated with $${amountToAdd} via NOWPayments. New balance: ${user.balance}`,
-        );
-      } else {
-        console.log(
-          `Deposit ${order_id} already processed or not pending: ${deposit.status}`,
-        );
-      }
-    } else {
-      console.log(`Ignored status: ${payment_status}`);
-    }
-
-    res.status(200).send("OK");
-  } catch (error) {
-    console.error("NOWPayments IPN Error:", error.message);
-    res.status(500).send("Internal Server Error");
-  }
-};
