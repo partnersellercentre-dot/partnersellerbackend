@@ -35,6 +35,7 @@ const walletTransactionSchema = new mongoose.Schema(
         "Escrow",
         "USDT (TRC20)",
         "USDT (BEP20)",
+        "NOWPayments", // ✅ Added support for NOWPayments deposits
         "Signup Bonus",
         "Referral Bonus",
         "Team Commission",
