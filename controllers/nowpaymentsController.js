@@ -17,10 +17,17 @@ exports.createPayment = async (req, res) => {
     const userId = req.user.id;
     const orderId = `NP_${Date.now()}`;
 
-    // backend url for IPN
-    // If BACKEND_URL is not set, fallback to the correct Vercel domain
+    // Use the explicitly provided backend URL or fallback to the hardcoded correct production URL
+    // We are stripping the trailing slash just in case
+    const envBackendUrl = process.env.BACKEND_URL
+      ? process.env.BACKEND_URL.replace(/\/$/, "")
+      : "";
+
+    // Force the correct URL if the env var is pointing to the old app (common config error)
     const backendUrl =
-      process.env.BACKEND_URL || "https://partnersellerbackend.vercel.app";
+      envBackendUrl && !envBackendUrl.includes("pec-app-backend")
+        ? envBackendUrl
+        : "https://partnersellerbackend.vercel.app";
 
     const ipnUrl = `${backendUrl}/api/nowpayments/ipn`;
     console.log(
