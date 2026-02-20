@@ -18,8 +18,9 @@ exports.createPayment = async (req, res) => {
     const orderId = `NP_${Date.now()}`;
 
     // backend url for IPN
+    // If BACKEND_URL is not set, fallback to the correct Vercel domain
     const backendUrl =
-      process.env.BACKEND_URL || "https://pec-app-backend.vercel.app";
+      process.env.BACKEND_URL || "https://partnersellerbackend.vercel.app";
 
     const ipnUrl = `${backendUrl}/api/nowpayments/ipn`;
     console.log(
