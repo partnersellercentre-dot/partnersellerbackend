@@ -39,6 +39,7 @@ if (process.env.FRONTEND_URL) {
   });
 }
 
+
 const corsOptions = {
   origin: function (origin, callback) {
     // 1️⃣ Allow requests with no origin (e.g. mobile apps, postman, server-to-server)
