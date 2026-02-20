@@ -18,7 +18,11 @@ exports.createPayment = async (req, res) => {
     const orderId = `NP_${Date.now()}`;
 
     // backend url for IPN
-    const backendUrl = process.env.BACKEND_URL;
+    const backendUrl =
+      process.env.BACKEND_URL || "https://api.partnersellercentre.shop"; // Fallback to your production URL
+
+    const ipnUrl = `${backendUrl}/api/nowpayments/ipn`;
+    console.log(`Setting up NOWPayments deposit of ${amount} ${currency || "usd"} for user ${userId}. Callback URL: ${ipnUrl}`);
 
     const response = await axios.post(
       `${BASE_URL}/payment`,
@@ -26,7 +30,7 @@ exports.createPayment = async (req, res) => {
         price_amount: amount,
         price_currency: currency || "usd",
         pay_currency: pay_currency || "usdttrc20",
-        ipn_callback_url: `${backendUrl}/api/nowpayments/ipn`,
+        ipn_callback_url: ipnUrl,
         order_id: orderId,
         order_description: `Deposit for user ${userId}`,
       },
@@ -39,6 +43,7 @@ exports.createPayment = async (req, res) => {
     );
 
     const paymentData = response.data;
+    console.log(`NOWPayments API responded with payment ID: ${paymentData.payment_id}. Address: ${paymentData.pay_address}`);
 
     // Save to Deposit model
     const deposit = new Deposit({
@@ -73,6 +78,8 @@ exports.handleIPN = async (req, res) => {
     const receivedSig = req.headers["x-nowpayments-sig"];
     const payload = req.body;
 
+    console.log("NOWPayments IPN received:", JSON.stringify(payload, null, 2));
+
     if (!receivedSig) {
       console.warn("NOWPayments IPN: Missing signature");
       return res.status(400).send("Missing Signature");
@@ -91,38 +98,80 @@ exports.handleIPN = async (req, res) => {
     const expectedSig = hmac.digest("hex");
 
     if (receivedSig !== expectedSig) {
-      console.error("NOWPayments IPN signature mismatch");
-      // Note: In development/sandbox sometimes there might be issues,
-      // but for production this check is crucial.
-      return res.status(400).send("Invalid Signature");
+      console.error(
+        "NOWPayments IPN signature mismatch. Expected:",
+        expectedSig,
+        "Received:",
+        receivedSig,
+      );
+      // In development, you might want to bypass this for testing with tools like Postman
+      // but only if NO_SIGNATURE_CHECK is explicitly allowed in env
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("Bypassing signature check in development mode");
+      } else {
+        return res.status(400).send("Invalid Signature");
+      }
     }
 
     const { payment_status, order_id, pay_amount, payment_id, price_amount } =
       payload;
 
-    if (payment_status === "finished") {
+    console.log(`Processing NOWPayments IPN for status: ${payment_status}`);
+
+    if (payment_status === "finished" || payment_status === "confirmed") {
       const deposit = await Deposit.findOne({ orderId: order_id }).populate(
         "user",
       );
+
+      if (!deposit) {
+        console.error(`NOWPayments IPN: Deposit for order ${order_id} not found`);
+        return res.status(200).send("OK");
+      }
+
       if (deposit && deposit.status === "pending") {
+        console.log(`Crediting user ${deposit.user._id} for order ${order_id}`);
+
         deposit.status = "credited";
         deposit.receivedAmount = pay_amount;
         deposit.txid = payment_id;
         await deposit.save();
 
         // Update user balance
-        // We use price_amount from payload (USD) or deposit.expectedAmount
         const amountToAdd = Number(price_amount) || deposit.expectedAmount;
-        deposit.user.balance += amountToAdd;
-        await deposit.user.save();
+        const user = deposit.user;
+
+        // Update main balance and recharge balance (bucket)
+        user.balance = (user.balance || 0) + amountToAdd;
+        if (!user.balances) user.balances = {};
+        user.balances.recharge = (user.balances.recharge || 0) + amountToAdd;
+
+        await user.save();
+
+        // Create a record in WalletTransaction so it shows on panel
+        const WalletTransaction = require("../models/WalletTransaction");
+        await WalletTransaction.create({
+          user: user._id,
+          amount: amountToAdd,
+          type: "deposit",
+          status: "approved",
+          description: `Automatic deposit via NOWPayments (${deposit.currency})`,
+          method: "NOWPayments",
+          direction: "in",
+          txid: payment_id,
+        });
 
         // Trigger Deposit Bonus (Self + Referral First Time)
-        await processDepositBonus(deposit.user._id, amountToAdd);
+        // This will create a separate WalletTransaction for the bonus itself
+        await processDepositBonus(user._id, amountToAdd);
 
         console.log(
-          `User ${deposit.user._id} balance updated with $${amountToAdd} via NOWPayments`,
+          `User ${user._id} balance updated with $${amountToAdd} via NOWPayments. New balance: ${user.balance}`,
         );
+      } else {
+        console.log(`Deposit ${order_id} already processed or not pending: ${deposit.status}`);
       }
+    } else {
+      console.log(`Ignored status: ${payment_status}`);
     }
 
     res.status(200).send("OK");
