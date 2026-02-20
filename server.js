@@ -20,6 +20,16 @@ const app = express();
 // ✅ Connect DB
 connectDB();
 
+// ✅ Global Request Logger (must be first)
+app.use((req, res, next) => {
+  console.log(`[REQUEST] ${req.method} ${req.originalUrl}`);
+  // Log headers for debugging IPN issues
+  if (req.originalUrl.includes("/ipn")) {
+    console.log(`[IPN HEADERS]`, JSON.stringify(req.headers));
+  }
+  next();
+});
+
 // ✅ CORS configuration
 const allowedOrigins = [
   "https://www.partnersellercentre.shop",
@@ -38,7 +48,6 @@ if (process.env.FRONTEND_URL) {
     }
   });
 }
-
 
 const corsOptions = {
   origin: function (origin, callback) {

@@ -82,7 +82,15 @@ exports.handleIPN = async (req, res) => {
     const receivedSig = req.headers["x-nowpayments-sig"];
     const payload = req.body;
 
-    console.log("[IPN RECEIVED] Payload:", JSON.stringify(payload));
+    console.log("[IPN START] Function invoked");
+    console.log("[IPN RECEIVED] Payload:", JSON.stringify(payload, null, 2));
+
+    if (!payload || Object.keys(payload).length === 0) {
+      console.warn(
+        "[IPN] Empty payload received. Check body-parser/express.json middleware.",
+      );
+      return res.status(400).send("Empty Payload");
+    }
 
     if (!receivedSig) {
       console.warn("[IPN ERROR] Missing signature header");
