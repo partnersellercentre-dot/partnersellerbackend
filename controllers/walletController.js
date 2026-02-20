@@ -446,7 +446,14 @@ exports.getMyTransactions = async (req, res) => {
 
     let mappedDeposits = [];
     if (tab === "deposit") {
-      const automatedDeposits = await Deposit.find({ user: userId }).lean();
+      // Only fetch pending or failed deposits from the automated system
+      // Credited (Approved) deposits are now created as WalletTransactions in the controller
+      // so we don't need to double-count them here.
+      const automatedDeposits = await Deposit.find({
+        user: userId,
+        status: { $ne: "credited" }, // ✅ Exclude credited one to avoid duplicate
+      }).lean();
+
       mappedDeposits = automatedDeposits.map((d) => ({
         _id: d._id,
         amount: d.receivedAmount || d.expectedAmount || 0,
