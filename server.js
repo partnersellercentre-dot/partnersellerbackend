@@ -22,23 +22,39 @@ connectDB();
 
 // ✅ CORS configuration
 const allowedOrigins = [
-  process.env.FRONTEND_URL || "http://localhost:5173",
   "https://www.partnersellercentre.shop",
-  "https://partnersellercentre-frontend.vercel.app", // Common Vercel pattern, check your frontend URL
+  "https://partnersellercentre-frontend.vercel.app",
+  "http://localhost:5173",
 ];
+
+// Dynamically add FRONTEND_URL from env if it exists, ensuring no trailing slash
+if (process.env.FRONTEND_URL) {
+  const envUrls = process.env.FRONTEND_URL.split(",").map((url) =>
+    url.trim().replace(/\/$/, ""),
+  );
+  envUrls.forEach((url) => {
+    if (url && !allowedOrigins.includes(url)) {
+      allowedOrigins.push(url);
+    }
+  });
+}
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // allow requests with no origin (like mobile apps or curl requests)
+    // 1️⃣ Allow requests with no origin (e.g. mobile apps, postman, server-to-server)
     if (!origin) return callback(null, true);
 
+    // 2️⃣ Normalize origin (remove trailing slash)
+    const normalizedOrigin = origin.replace(/\/$/, "");
+
+    // 3️⃣ Check against allowed origins or allow all in development
     if (
-      allowedOrigins.indexOf(origin) !== -1 ||
+      allowedOrigins.includes(normalizedOrigin) ||
       process.env.NODE_ENV === "development"
     ) {
       callback(null, true);
     } else {
-      console.log("Blocking origin by CORS:", origin);
+      console.log(`[CORS Blocked] Origin: ${origin}`);
       callback(new Error("Not allowed by CORS"));
     }
   },
@@ -50,14 +66,13 @@ const corsOptions = {
     "X-Requested-With",
     "Accept",
     "Origin",
+    "x-nowpayments-sig",
   ],
-  optionsSuccessStatus: 200, // Some legacy browsers (IE11, various SmartTVs) choke on 204
+  optionsSuccessStatus: 200,
 };
 
 // ✅ Apply CORS globally — MUST be before routes
 app.use(cors(corsOptions));
-
-// ✅ Ensure preflight requests handled globally
 app.options("*", cors(corsOptions));
 
 // ✅ Body parser
