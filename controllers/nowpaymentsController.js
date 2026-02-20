@@ -22,7 +22,9 @@ exports.createPayment = async (req, res) => {
       process.env.BACKEND_URL || "https://api.partnersellercentre.shop"; // Fallback to your production URL
 
     const ipnUrl = `${backendUrl}/api/nowpayments/ipn`;
-    console.log(`Setting up NOWPayments deposit of ${amount} ${currency || "usd"} for user ${userId}. Callback URL: ${ipnUrl}`);
+    console.log(
+      `Setting up NOWPayments deposit of ${amount} ${currency || "usd"} for user ${userId}. Callback URL: ${ipnUrl}`,
+    );
 
     const response = await axios.post(
       `${BASE_URL}/payment`,
@@ -43,7 +45,9 @@ exports.createPayment = async (req, res) => {
     );
 
     const paymentData = response.data;
-    console.log(`NOWPayments API responded with payment ID: ${paymentData.payment_id}. Address: ${paymentData.pay_address}`);
+    console.log(
+      `NOWPayments API responded with payment ID: ${paymentData.payment_id}. Address: ${paymentData.pay_address}`,
+    );
 
     // Save to Deposit model
     const deposit = new Deposit({
@@ -124,7 +128,9 @@ exports.handleIPN = async (req, res) => {
       );
 
       if (!deposit) {
-        console.error(`NOWPayments IPN: Deposit for order ${order_id} not found`);
+        console.error(
+          `NOWPayments IPN: Deposit for order ${order_id} not found`,
+        );
         return res.status(200).send("OK");
       }
 
@@ -168,7 +174,9 @@ exports.handleIPN = async (req, res) => {
           `User ${user._id} balance updated with $${amountToAdd} via NOWPayments. New balance: ${user.balance}`,
         );
       } else {
-        console.log(`Deposit ${order_id} already processed or not pending: ${deposit.status}`);
+        console.log(
+          `Deposit ${order_id} already processed or not pending: ${deposit.status}`,
+        );
       }
     } else {
       console.log(`Ignored status: ${payment_status}`);
