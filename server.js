@@ -96,7 +96,7 @@ app.get("/", (req, res) => {
 
 // ✅ API routes
 app.use("/api/auth", authRoutes);
-app.use("/api/admin", adminRoutes);
+app.use("/api/psc", adminRoutes);
 app.use("/api/wallet", walletRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/kyc", kycRoutes);

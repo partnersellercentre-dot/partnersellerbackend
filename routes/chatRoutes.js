@@ -14,10 +14,10 @@ router.post(
 );
 
 // Admin routes
-router.get("/admin/users", adminProtect, chatController.getChatUsers);
-router.get("/admin/:userId", adminProtect, chatController.getAdminUserMessages);
+router.get("/psc/users", adminProtect, chatController.getChatUsers);
+router.get("/psc/:userId", adminProtect, chatController.getAdminUserMessages);
 router.post(
-  "/admin/:userId/reply",
+  "/psc/:userId/reply",
   adminProtect,
   upload.single("image"),
   chatController.replyToUser,
