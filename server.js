@@ -24,13 +24,21 @@ connectDB();
 const allowedOrigins = [
   process.env.FRONTEND_URL || "http://localhost:5173",
   "https://www.partnersellercentre.shop",
+  "https://partnersellercentre-frontend.vercel.app", // Common Vercel pattern, check your frontend URL
 ];
 
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    // allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    if (
+      allowedOrigins.indexOf(origin) !== -1 ||
+      process.env.NODE_ENV === "development"
+    ) {
       callback(null, true);
     } else {
+      console.log("Blocking origin by CORS:", origin);
       callback(new Error("Not allowed by CORS"));
     }
   },
@@ -43,6 +51,7 @@ const corsOptions = {
     "Accept",
     "Origin",
   ],
+  optionsSuccessStatus: 200, // Some legacy browsers (IE11, various SmartTVs) choke on 204
 };
 
 // ✅ Apply CORS globally — MUST be before routes
@@ -85,4 +94,3 @@ if (require.main === module) {
 
 // ✅ Export app for Vercel serverless
 module.exports = app;
-
