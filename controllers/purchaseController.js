@@ -193,8 +193,8 @@ exports.claimProfit = async (req, res) => {
       });
     }
 
-    // Calculate profit (e.g., 3.2%)
-    const profitPercent = 3.2;
+    // Calculate profit (e.g., 2.2%)
+    const profitPercent = 2.2;
     const profitAmount =
       Math.round(((purchase.product.price * profitPercent) / 100) * 100) / 100;
 

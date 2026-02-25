@@ -139,8 +139,14 @@ exports.handleIPN = async (req, res) => {
       }
     }
 
-    const { payment_status, order_id, pay_amount, payment_id, price_amount } =
-      payload;
+    const {
+      payment_status,
+      order_id,
+      pay_amount,
+      actually_paid,
+      payment_id,
+      price_amount,
+    } = payload;
     console.log(
       `[IPN PROCESSING] Order: ${order_id}, Status: ${payment_status}`,
     );
@@ -156,19 +162,36 @@ exports.handleIPN = async (req, res) => {
       }
 
       if (deposit.status === "pending") {
-        console.log(
-          `[IPN SUCCESS] Crediting $${
-            price_amount || deposit.expectedAmount
-          } to User: ${deposit.user._id}`,
-        );
+        // 🔒 SECURITY FIX: Calculate actual amount to credit based on ratio of crypto paid
+        // This prevents users from paying small amounts (e.g. $1) to satisfy large orders (e.g. $100)
+        const requestedUSD = Number(price_amount) || deposit.expectedAmount;
+        const requestedCrypto = Number(pay_amount);
+        const receivedCrypto = Number(actually_paid || 0);
+
+        let amountToAdd = requestedUSD;
+
+        if (requestedCrypto > 0 && receivedCrypto > 0) {
+          // If user underpaid or overpaid, credit proportionally
+          const ratio = receivedCrypto / requestedCrypto;
+          // Round to 2 decimal places for USD
+          amountToAdd = Math.round(requestedUSD * ratio * 100) / 100;
+
+          console.log(
+            `[IPN SUCCESS/CALC] Order: ${order_id}, Requested: ${requestedUSD} USD (${requestedCrypto} crypto), Received: ${receivedCrypto} crypto. Final Credit: ${amountToAdd} USD`,
+          );
+        } else if (receivedCrypto === 0) {
+          console.warn(
+            `[IPN WARN] Received 0 crypto for order ${order_id}. No balance will be added.`,
+          );
+          amountToAdd = 0;
+        }
 
         deposit.status = "credited";
-        deposit.receivedAmount = pay_amount;
+        deposit.receivedAmount = receivedCrypto;
         deposit.txid = payment_id;
         await deposit.save();
 
         const user = deposit.user;
-        const amountToAdd = Number(price_amount) || deposit.expectedAmount;
 
         // Update balances
         user.balance = (user.balance || 0) + amountToAdd;
